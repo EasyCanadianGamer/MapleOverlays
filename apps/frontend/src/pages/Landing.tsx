@@ -640,7 +640,7 @@ export default function Landing() {
       </section>
 
       {/* Pricing */}
-      <section style={{ position: 'relative', zIndex: 1, padding: '80px 0' }}>
+      {/* <section style={{ position: 'relative', zIndex: 1, padding: '80px 0' }}>
         <div style={{ maxWidth: 1120, margin: '0 auto', padding: '0 32px' }}>
           <div style={{ textAlign: 'center', marginBottom: 48 }}>
             <h2
@@ -688,7 +688,7 @@ export default function Landing() {
             />
           </div>
         </div>
-      </section>
+      </section> */}
 
       {/* Footer CTA */}
       <section

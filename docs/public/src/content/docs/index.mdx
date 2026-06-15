@@ -1,0 +1,36 @@
+---
+title: Welcome to MapleOverlays
+description: Twitch overlay and bot service for streamers — live song display, chat commands, and more.
+template: splash
+hero:
+  tagline: Live overlays and a smart chat bot for Twitch streamers.
+  actions:
+    - text: Set up the bot
+      link: /guides/bot-setup/
+      icon: right-arrow
+      variant: primary
+    - text: Add an overlay
+      link: /guides/overlays/
+      icon: right-arrow
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+## What is MapleOverlays?
+
+MapleOverlays connects your Twitch channel to a set of live overlays and a multi-tenant chat bot. Once invited, the bot joins your channel and responds to commands in chat. Overlays display real-time data (like now-playing track info) as transparent browser sources inside OBS or Streamlabs.
+
+<CardGrid>
+  <Card title="Bot Setup" icon="puzzle">
+    Invite the bot to your channel in under a minute. [Get started →](/guides/bot-setup/)
+  </Card>
+  <Card title="Overlays" icon="laptop">
+    Add transparent browser sources to OBS. [Learn how →](/guides/overlays/)
+  </Card>
+  <Card title="Commands" icon="notes">
+    View all built-in commands and create your own. [See reference →](/reference/commands/)
+  </Card>
+  <Card title="Template Variables" icon="document">
+    Personalize command responses with dynamic data. [See variables →](/reference/template-variables/)
+  </Card>
+</CardGrid>

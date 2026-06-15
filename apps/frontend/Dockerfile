@@ -1,4 +1,4 @@
-FROM node:20-alpine AS build
+FROM node:22-alpine AS build
 RUN npm install -g pnpm
 WORKDIR /app
 
@@ -8,7 +8,9 @@ COPY apps/bot/package.json ./apps/bot/
 COPY apps/frontend/package.json ./apps/frontend/
 COPY packages/lastfm/package.json ./packages/lastfm/
 COPY packages/shared/package.json ./packages/shared/
-RUN pnpm install
+COPY docs/public/package.json ./docs/public/
+COPY pnpm-lock.yaml .npmrc ./
+RUN pnpm install --frozen-lockfile
 
 COPY packages/ ./packages/
 COPY apps/frontend/ ./apps/frontend/

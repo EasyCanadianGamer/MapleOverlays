@@ -8,7 +8,7 @@ MapleOverlays is a streamer overlay service. It connects to Twitch (via a bot an
 
 ## Monorepo Structure
 
-pnpm workspaces. All `apps/*` and `packages/*` are workspace members.
+pnpm workspaces. All `apps/*`, `packages/*`, and `docs/*` are workspace members.
 
 ```
 apps/
@@ -18,6 +18,8 @@ apps/
 packages/
   lastfm/     getNowPlaying(username) — wraps Last.fm REST API
   shared/     Placeholder — shared utilities (currently empty)
+docs/
+  public/     Astro + Starlight documentation site (@maple/docs)
 test-docker/  Postgres-only docker-compose for local dev
 ```
 
@@ -35,6 +37,13 @@ cd apps/frontend && pnpm dev  # Vite on :5173
 
 # Run migrations only (from apps/api)
 cd apps/api && pnpm migrate
+
+# Docs (from docs/public directory)
+cd docs/public && pnpm dev    # Astro Starlight on :4321
+cd docs/public && pnpm build  # Static output to docs/public/dist/
+
+# Run bot unit tests (node:test, no external runner)
+cd apps/bot && pnpm test
 
 # Full stack
 docker compose up --build
@@ -161,3 +170,22 @@ Overlay pages inject a `<style>` tag synchronously in `main.tsx` (before React r
 ## Token Encryption
 
 Tokens stored in the `channels` table are AES-256-GCM encrypted. The wire format (base64) is: 12-byte IV ‖ 16-byte GCM auth tag ‖ ciphertext. If a channel's token fails to decrypt, the bot logs a warning and that channel's access-dependent commands (`!followage`) silently return `null` until the channel re-authorizes.
+
+## Documentation Site
+
+`docs/public/` is an Astro + Starlight static documentation site (`@maple/docs`). Content lives in `docs/public/src/content/docs/` as `.md`/`.mdx` files with file-based routing. The sidebar is configured in `docs/public/astro.config.mjs`.
+
+| Path | URL slug | Purpose |
+|---|---|---|
+| `src/content/docs/index.mdx` | `/` | Introduction / welcome |
+| `src/content/docs/guides/bot-setup.md` | `/guides/bot-setup/` | Inviting the bot, OAuth |
+| `src/content/docs/guides/overlays.md` | `/guides/overlays/` | OBS overlay setup |
+| `src/content/docs/reference/commands.md` | `/reference/commands/` | Built-in command reference |
+| `src/content/docs/reference/template-variables.md` | `/reference/template-variables/` | Template variable reference |
+| `src/content/docs/self-hosting/index.md` | `/self-hosting/` | Self-hosting overview + requirements |
+| `src/content/docs/self-hosting/docker.md` | `/self-hosting/docker/` | Docker Compose step-by-step |
+| `src/content/docs/self-hosting/environment.md` | `/self-hosting/environment/` | Full env var reference |
+
+Brand assets (fonts, logo, favicon) are copied from `apps/frontend/src/` into `docs/public/public/fonts/` and `docs/public/src/assets/`. Theme overrides live in `docs/public/src/styles/custom.css`.
+
+Dev server runs on port 4321. Build output goes to `docs/public/dist/` and can be deployed as a standalone static site independently of the other apps.

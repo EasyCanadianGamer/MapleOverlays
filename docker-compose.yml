@@ -23,6 +23,7 @@ services:
       TWITCH_CLIENT_SECRET: ${TWITCH_CLIENT_SECRET}
       TWITCH_BOT_CALLBACK_URI: ${TWITCH_BOT_CALLBACK_URI}
       FRONTEND_URL: ${FRONTEND_URL}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
     networks:
       - maple_net
     depends_on:
@@ -41,6 +42,7 @@ services:
       BOT_USER_ID: ${BOT_USER_ID}
       BOT_ACCESS_TOKEN: ${BOT_ACCESS_TOKEN}
       LASTFM_API_KEY: ${LASTFM_API_KEY}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
     networks:
       - maple_net
     depends_on:
@@ -58,6 +60,16 @@ services:
     restart: unless-stopped
     ports:
       - "${FRONTEND_PORT:-5173}:80"
+    networks:
+      - maple_net
+
+  docs:
+    build:
+      context: .
+      dockerfile: docs/public/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${DOCS_PORT:-4321}:80"
     networks:
       - maple_net
 
