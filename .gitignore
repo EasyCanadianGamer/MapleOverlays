@@ -1,0 +1,11 @@
+.env
+.env.*
+!.env.example
+node_modules
+.git
+
+# Claude Code / plugin tooling
+.agents/
+.claude/
+.superpowers/
+.remember/

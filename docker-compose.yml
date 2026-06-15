@@ -1,0 +1,79 @@
+name: mapleoverlays
+
+networks:
+  maple_net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${API_PORT:-3000}:3000"
+    environment:
+      PORT: "3000"
+      LASTFM_API_KEY: ${LASTFM_API_KEY}
+      DATABASE_URL: ${DATABASE_URL}
+      TWITCH_CLIENT_ID: ${TWITCH_CLIENT_ID}
+      TWITCH_CLIENT_SECRET: ${TWITCH_CLIENT_SECRET}
+      TWITCH_BOT_CALLBACK_URI: ${TWITCH_BOT_CALLBACK_URI}
+      FRONTEND_URL: ${FRONTEND_URL}
+    networks:
+      - maple_net
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  bot:
+    build:
+      context: .
+      dockerfile: apps/bot/Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      TWITCH_CLIENT_ID: ${TWITCH_CLIENT_ID}
+      TWITCH_CLIENT_SECRET: ${TWITCH_CLIENT_SECRET}
+      BOT_USER_ID: ${BOT_USER_ID}
+      BOT_ACCESS_TOKEN: ${BOT_ACCESS_TOKEN}
+      LASTFM_API_KEY: ${LASTFM_API_KEY}
+    networks:
+      - maple_net
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: .
+      dockerfile: apps/frontend/Dockerfile
+      args:
+        VITE_TWITCH_CLIENT_ID: ${VITE_TWITCH_CLIENT_ID}
+        VITE_TWITCH_REDIRECT_URI: ${VITE_TWITCH_REDIRECT_URI}
+        VITE_API_URL: ${VITE_API_URL}
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-5173}:80"
+    networks:
+      - maple_net
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-maple}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-maple}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-maple} -d ${POSTGRES_DB:-maple}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - maple_net

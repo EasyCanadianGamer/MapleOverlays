@@ -1,0 +1,16 @@
+{
+  "name": "@maple/bot",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "start": "node --env-file-if-exists=../../.env src/index.js",
+    "dev": "node --watch --env-file-if-exists=../../.env src/index.js",
+    "test": "node --test test/**/*.test.js"
+  },
+  "dependencies": {
+    "@maple/lastfm": "workspace:*",
+    "@maple/shared": "workspace:*",
+    "pg": "^8.13.3",
+    "ws": "^8.20.1"
+  }
+}

@@ -1,0 +1,333 @@
+/* ============================================================
+   MapleOverlays — Foundation tokens
+   ============================================================ */
+
+@import url("https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&display=swap");
+
+@font-face {
+  font-family: "Geist";
+  src: url("../fonts/Geist-VariableFont_wght.ttf") format("truetype-variations");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Geist";
+  src: url("../fonts/Geist-Italic-VariableFont_wght.ttf") format("truetype-variations");
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Geist Mono";
+  src: url("../fonts/GeistMono-VariableFont_wght.ttf") format("truetype-variations");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Geist Mono";
+  src: url("../fonts/GeistMono-Italic-VariableFont_wght.ttf") format("truetype-variations");
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+}
+
+:root {
+  /* ---------- Brand ---------- */
+  --maple-50:  #FBE6EE;
+  --maple-100: #F4BCD0;
+  --maple-200: #E78C9F;
+  --maple-300: #D85C7C;
+  --maple-400: #C12F5D;
+  --maple-500: #AC0747;
+  --maple-600: #8E0539;
+  --maple-700: #70042C;
+  --maple-800: #51031F;
+  --maple-900: #2D0211;
+
+  --brand:       var(--maple-500);
+  --brand-hover: var(--maple-400);
+  --brand-press: var(--maple-600);
+  --brand-soft:  color-mix(in oklab, var(--maple-500) 14%, transparent);
+
+  /* ---------- Tier accents ---------- */
+  --tier-free:        #8A8694;
+  --tier-premium:     #FFB627;
+  --tier-premium-ink: #5A3A00;
+  --tier-self:        #4ED4B5;
+  --tier-self-ink:    #053D31;
+
+  /* ---------- Signal / status ---------- */
+  --live:    #FF3B5C;
+  --success: #22C58B;
+  --warning: #FFB627;
+  --danger:  #FF5470;
+  --info:    #5BA8FF;
+
+  /* ---------- Cozy candlelit dark — final approved theme ---------- */
+  --bg-0:   #16100C;
+  --bg-1:   #1F1611;
+  --bg-2:   #2A1E17;
+  --bg-3:   #362619;
+  --bg-4:   #473320;
+
+  --ink-0:  #FBF1E8;
+  --ink-1:  #E9DACE;
+  --ink-2:  #BCA89B;
+  --ink-3:  #8C7869;
+  --ink-4:  #5E4E43;
+  --ink-5:  #3E332B;
+
+  --border-1: rgba(255, 219, 178, 0.07);
+  --border-2: rgba(255, 219, 178, 0.12);
+  --border-3: rgba(255, 219, 178, 0.20);
+
+  /* ---------- Light theme paper tokens (reference only) ---------- */
+  --paper-0: #FBF6F7;
+  --paper-1: #F3EBED;
+  --paper-2: #E9DDE0;
+  --paper-3: #D9C8CD;
+
+  /* ---------- Type families ---------- */
+  --font-display: "Bricolage Grotesque", "Inter", system-ui, sans-serif;
+  --font-body:    "Geist", "Inter", system-ui, sans-serif;
+  --font-mono:    "Geist Mono", ui-monospace, "JetBrains Mono", Menlo, monospace;
+
+  /* ---------- Type scale ---------- */
+  --fs-12: 12px;
+  --fs-13: 13px;
+  --fs-14: 14px;
+  --fs-15: 15px;
+  --fs-16: 16px;
+  --fs-18: 18px;
+  --fs-20: 20px;
+  --fs-24: 24px;
+  --fs-30: 30px;
+  --fs-38: 38px;
+  --fs-48: 48px;
+  --fs-64: 64px;
+  --fs-80: 80px;
+
+  /* ---------- Spacing (4px base) ---------- */
+  --sp-1:  4px;
+  --sp-2:  8px;
+  --sp-3:  12px;
+  --sp-4:  16px;
+  --sp-5:  20px;
+  --sp-6:  24px;
+  --sp-8:  32px;
+  --sp-10: 40px;
+  --sp-12: 48px;
+  --sp-16: 64px;
+  --sp-20: 80px;
+
+  /* ---------- Radii ---------- */
+  --r-1:   4px;
+  --r-2:   8px;
+  --r-3:   12px;
+  --r-4:   16px;
+  --r-5:   20px;
+  --r-pill: 999px;
+
+  /* ---------- Shadows ---------- */
+  --shadow-1: 0 1px 0 rgba(255,255,255,0.04) inset, 0 1px 2px rgba(0,0,0,0.4);
+  --shadow-2: 0 1px 0 rgba(255,255,255,0.05) inset, 0 8px 24px -10px rgba(0,0,0,0.55);
+  --shadow-3: 0 1px 0 rgba(255,255,255,0.06) inset, 0 20px 48px -16px rgba(0,0,0,0.7);
+  --shadow-pop: 0 24px 60px -20px rgba(172,7,71,0.45), 0 8px 24px -8px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.06) inset;
+
+  /* ---------- Motion ---------- */
+  --ease-out:    cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in:     cubic-bezier(0.55, 0, 1, 0.45);
+  --ease-bouncy: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --dur-1: 120ms;
+  --dur-2: 200ms;
+  --dur-3: 320ms;
+  --dur-4: 520ms;
+}
+
+/* ============================================================
+   Base resets & element styles
+   ============================================================ */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg-0);
+  color: var(--ink-0);
+  font-family: var(--font-body);
+  font-size: var(--fs-15);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow-x: hidden;
+}
+
+h1, h2, h3, h4, h5, .display {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+  text-wrap: balance;
+  color: var(--ink-0);
+  margin: 0;
+}
+
+h1 { font-size: var(--fs-64); font-weight: 800; letter-spacing: -0.03em; }
+h2 { font-size: var(--fs-48); }
+h3 { font-size: var(--fs-30); }
+h4 { font-size: var(--fs-24); font-weight: 600; letter-spacing: -0.015em; }
+h5 { font-size: var(--fs-18); font-weight: 600; letter-spacing: -0.01em; }
+
+p { margin: 0; color: var(--ink-1); }
+small { font-size: var(--fs-13); color: var(--ink-2); }
+
+a {
+  color: var(--maple-200);
+  text-decoration-color: color-mix(in oklab, var(--maple-200) 35%, transparent);
+  text-underline-offset: 3px;
+  transition: color var(--dur-1) var(--ease-out);
+}
+a:hover { color: var(--maple-100); }
+
+code, kbd, pre, samp {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+}
+code:not(pre code) {
+  background: var(--bg-2);
+  border: 1px solid var(--border-1);
+  padding: 0.1em 0.4em;
+  border-radius: var(--r-1);
+  color: var(--maple-100);
+}
+
+hr {
+  border: 0;
+  height: 1px;
+  background: var(--border-1);
+  margin: var(--sp-6) 0;
+}
+
+button { font-family: var(--font-body); }
+input, textarea, select { font-family: var(--font-body); }
+
+::selection { background: var(--brand); color: #fff; }
+
+:focus-visible {
+  outline: 2px solid var(--maple-300);
+  outline-offset: 2px;
+  border-radius: var(--r-1);
+}
+
+/* ============================================================
+   Animations
+   ============================================================ */
+
+@keyframes pulse-dot {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.7); }
+  70%       { box-shadow: 0 0 0 8px rgba(255, 255, 255, 0); }
+}
+
+@keyframes overlay-slide-up {
+  from { transform: translateY(28px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+/* Chat box — enter animations */
+@keyframes chat-in-left  { from { transform: translateX(-36px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes chat-in-right { from { transform: translateX(36px);  opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes chat-in-up    { from { transform: translateY(24px);  opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes chat-in-down  { from { transform: translateY(-24px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes chat-in-fade  { from { opacity: 0; } to { opacity: 1; } }
+@keyframes chat-in-pop   {
+  0%   { transform: scale(0.72) translateY(6px); opacity: 0; }
+  65%  { transform: scale(1.04); }
+  100% { transform: none; opacity: 1; }
+}
+/* Chat box — exit animations */
+@keyframes chat-out-left  { to { transform: translateX(-36px); opacity: 0; } }
+@keyframes chat-out-right { to { transform: translateX(36px);  opacity: 0; } }
+@keyframes chat-out-up    { to { transform: translateY(-24px); opacity: 0; } }
+@keyframes chat-out-down  { to { transform: translateY(24px);  opacity: 0; } }
+@keyframes chat-out-fade  { to { opacity: 0; } }
+@keyframes chat-out-pop   { to { transform: scale(0.72); opacity: 0; } }
+
+@keyframes overlay-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes overlay-confetti-1 {
+  0%   { transform: translate(0,0) rotate(0deg);    opacity: 1; }
+  100% { transform: translate(-30px,60px) rotate(220deg); opacity: 0; }
+}
+@keyframes overlay-confetti-2 {
+  0%   { transform: translate(0,0) rotate(0deg);    opacity: 1; }
+  100% { transform: translate(22px,55px) rotate(-160deg); opacity: 0; }
+}
+@keyframes overlay-confetti-3 {
+  0%   { transform: translate(0,0) rotate(0deg);    opacity: 1; }
+  100% { transform: translate(8px,70px) rotate(300deg);  opacity: 0; }
+}
+
+@keyframes alert-pop {
+  0%   { transform: translate(-50%, 80px); opacity: 0; }
+  15%  { transform: translate(-50%, 0);    opacity: 1; }
+  85%  { transform: translate(-50%, 0);    opacity: 1; }
+  100% { transform: translate(-50%, -20px); opacity: 0; }
+}
+
+/* ============================================================
+   Utility classes
+   ============================================================ */
+
+.live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #fff;
+  animation: pulse-dot 1.6s var(--ease-out) infinite;
+}
+
+.alert-flash {
+  position: fixed;
+  left: 50%;
+  top: 100px;
+  transform: translate(-50%, 0);
+  z-index: 999;
+  pointer-events: none;
+  animation: alert-pop 3.2s var(--ease-out) forwards;
+}
+
+.hub-card {
+  transition: transform 0.14s var(--ease-out), border-color 0.14s, background 0.14s;
+  cursor: pointer;
+}
+.hub-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--border-3) !important;
+  background: var(--bg-3) !important;
+}
+
+/* Dashboard body — warm leaf pattern + glow */
+.dashboard-body {
+  background:
+    radial-gradient(1150px 640px at 50% -14%, rgba(255, 176, 74, 0.13), transparent 62%),
+    radial-gradient(900px 520px at 100% -6%, rgba(193, 47, 93, 0.12), transparent 58%),
+    var(--bg-0);
+  background-attachment: fixed;
+  position: relative;
+}
+.dashboard-body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: url("/pattern-leaves.svg");
+  background-size: 240px 240px;
+  opacity: 0.045;
+}
