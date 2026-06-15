@@ -147,7 +147,7 @@ async function handleCommand(message, {
     const { enabled, response } = cfg('commands');
     if (!enabled) return null;
     if (response) return resolveTemplate(response, ctx);
-    const frontendUrl = process.env.FRONTEND_URL ?? 'https://maple.canadian-gamer.com';
+    const frontendUrl = process.env.FRONTEND_URL;
     return `Command list: ${frontendUrl}/commands/${broadcasterLogin}`;
   }
 

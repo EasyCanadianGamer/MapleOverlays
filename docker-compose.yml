@@ -14,7 +14,7 @@ services:
       dockerfile: apps/api/Dockerfile
     restart: unless-stopped
     ports:
-      - "${API_PORT:-3000}:3000"
+      - "${API_PORT:-3099}:3099"
     environment:
       PORT: "3000"
       LASTFM_API_KEY: ${LASTFM_API_KEY}
@@ -43,6 +43,7 @@ services:
       BOT_ACCESS_TOKEN: ${BOT_ACCESS_TOKEN}
       LASTFM_API_KEY: ${LASTFM_API_KEY}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      FRONTEND_URL: ${FRONTEND_URL}
     networks:
       - maple_net
     depends_on:

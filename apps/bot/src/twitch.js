@@ -138,7 +138,7 @@ async function deleteMessage(broadcasterId, messageId) {
       },
     }
   );
-  if (!res.ok) {
+  if (!res.ok && res.status !== 404) {
     const text = await res.text();
     console.error(`deleteMessage failed (${res.status}):`, text);
   }
