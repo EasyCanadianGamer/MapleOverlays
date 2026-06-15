@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import MapleMark from '../components/ui/MapleMark';
 
 const apiUrl = import.meta.env.VITE_API_URL as string;
@@ -120,7 +120,7 @@ export default function CommandsList() {
 
         <div style={{ marginTop: 40, paddingTop: 20, borderTop: '1px solid var(--border-1)', display: 'flex', alignItems: 'center', gap: 6, color: 'var(--ink-3)', fontSize: 12 }}>
           <span>Powered by</span>
-          <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--maple-300)' }}>MapleOverlays</span>
+          <Link to="/" style={{ fontFamily: 'var(--font-mono)', color: 'var(--maple-300)', textDecoration: 'none' }}>MapleOverlays</Link>
         </div>
       </div>
     </div>

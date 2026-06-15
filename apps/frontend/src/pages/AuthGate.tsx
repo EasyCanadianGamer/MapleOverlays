@@ -5,6 +5,7 @@ import { buildAuthUrl, getCallbackUri } from '../lib/twitchAuth';
 export default function AuthGate() {
   const [error, setError] = useState<string | null>(null);
   const clientIdMissing = !import.meta.env.VITE_TWITCH_CLIENT_ID;
+  const DOC_URL = import.meta.env.VITE_DOC_URL ?? 'https://docs.mapleoverlays.canadian-gamer.com';
 
   const handleConnect = () => {
     try {
@@ -145,7 +146,7 @@ export default function AuthGate() {
         <div style={{ fontSize: 12, color: 'var(--ink-4)', fontFamily: 'var(--font-mono)' }}>
           Self-hosting?{' '}
           <a
-            href="https://github.com/EasyCanadianGamer/MapleOverlays"
+            href={DOC_URL}
             target="_blank"
             rel="noopener noreferrer"
             style={{ color: 'var(--ink-3)', textDecoration: 'underline' }}

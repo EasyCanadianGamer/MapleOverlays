@@ -60,8 +60,9 @@ Copy `.env.example` to `.env` at the repo root. Key variables:
 | `LASTFM_API_KEY` | api |
 | `TWITCH_CLIENT_ID` / `TWITCH_CLIENT_SECRET` | api, bot |
 | `BOT_USER_ID` | bot |
-| `BOT_ACCESS_TOKEN` | bot (requires `user:bot` + `user:write:chat` scopes) |
-| `ENCRYPTION_KEY` | api, bot (64-char hex — generate: `openssl rand -hex 32`) |
+| `BOT_ACCESS_TOKEN` | bot (requires `user:bot` + `user:write:chat` + `moderator:manage:chat_messages` + `moderator:manage:banned_users` scopes) |
+| `TWITCH_BOT_CALLBACK_URI` | api (OAuth redirect — must match dev.twitch.tv registration, e.g. `http://localhost:3000/auth/bot/callback`) |
+| `ENCRYPTION_KEY` | api, bot (64-char hex — generate: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`) |
 | `VITE_TWITCH_CLIENT_ID` / `VITE_TWITCH_REDIRECT_URI` | frontend |
 | `DATABASE_URL` | api, bot |
 | `VITE_API_URL` | frontend |
@@ -76,9 +77,10 @@ Postgres only, accessed via `DATABASE_URL`. The API runs migrations on startup v
 Migration files live in `apps/api/migrations/`. The bot has no migration runner — the API must start first on a fresh DB.
 
 Schema overview:
-- `channels` — one row per broadcaster who invited the bot; `access_token`/`refresh_token` stored AES-256-GCM encrypted
+- `channels` — one row per broadcaster who invited the bot; `access_token`/`refresh_token` stored AES-256-GCM encrypted; `automod_settings` is a JSONB boolean array `[links, caps, emoteSpam, firstTimeWarn]`; `reconnect_requested_at` is polled by the bot to trigger EventSub reconnect
 - `command_configs` — per-channel command overrides (enabled flag + custom response template)
 - `watchtimes` — accumulated viewer watchtime in seconds per channel
+- `channel_events` — activity feed log; `event_type` values: `follow`, `sub`, `cheer`, `raid`, `mod_action`; indexed by `(channel_user_id, created_at DESC)`
 
 For local dev without full Docker, run just the DB:
 
@@ -101,7 +103,11 @@ All routes are in `apps/api/src/routes/bot.js`:
 | GET | `/settings` | Returns `{ lastfm_username, tip_url }` |
 | PUT | `/settings` | Updates `lastfm_username` and/or `tip_url` |
 | GET | `/channels/:login/commands` | Public — lists enabled commands for a streamer |
-| POST | `/bot/reconnect` | Triggers bot EventSub reconnect (stub) |
+| POST | `/bot/reconnect` | Sets `reconnect_requested_at` on channel row; bot polls this to reconnect EventSub |
+| GET | `/bot/activity` | Returns recent `channel_events` rows for the caller's channel |
+| GET | `/bot/automod` | Returns `automod_settings` array for the caller's channel |
+| PUT | `/bot/automod` | Updates `automod_settings` array |
+| GET | `/bot/token-helper` | HTML page that extracts `BOT_ACCESS_TOKEN` from the OAuth fragment (dev utility, in `api/src/index.js`) |
 
 Routes that mutate data call `getCallerTwitchId()` to verify the Bearer token against Twitch's `/helix/users` endpoint and check IDOR.
 
@@ -113,13 +119,15 @@ The bot (`apps/bot/src/index.js`) uses Twitch EventSub WebSocket to receive chat
 - `eventsub.js` — `EventSubManager` class: manages one persistent WebSocket, subscribes to `channel.chat.message` per channel, handles reconnect with exponential backoff
 - `commands.js` — `handleCommand(message, ctx)` — pure command dispatcher; returns the reply string or `null`
 - `template.js` — `resolveTemplate(template, ctx)` — async template substitution (see Template Variables below)
-- `twitch.js` — Helix API wrappers (`getBroadcasterStream`, `getFollowAge`, `getUserCreatedAt`, `sendMessage`, etc.)
+- `twitch.js` — Helix API wrappers: `sendMessage`, `deleteMessage`, `timeoutUser` (automod enforcement); `getBroadcasterStream`, `getChannelInfo`, `getFollowAge`, `getSubAge`, `getUserCreatedAt`, `getUserIdByLogin`
 - `crypto.js` — `decrypt(ciphertext)` only — AES-256-GCM using the shared `ENCRYPTION_KEY`
 - `db.js` — pg Pool with configurable limits via `DB_POOL_MAX` / `DB_IDLE_TIMEOUT_MS` / etc.
 
 **In-process state:**
 - `configCache` (Map) — caches per-channel DB config for 60s to reduce DB queries
 - `sessionMap` (Map) — tracks viewer chat session start times for watchtime accounting; flushed on stream-offline and on SIGINT/SIGTERM
+
+**Automod enforcement** (`enforceAutoMod` in `bot/src/index.js`): runs on every chat message before command dispatch. Checks `automod_settings[0..3]`: link filter (deletes message), caps tax (30s timeout), emote spam (30s timeout), first-time message hold (logs to `channel_events` as `mod_action`). Requires `deleteMessage` and `timeoutUser` Helix API calls with bot's own token — bot user must be a channel moderator.
 
 ## Adding Bot Commands
 
@@ -166,6 +174,12 @@ Dashboard sub-pages (rendered inside `DashboardLayout`): `Bot.tsx`, `BotCommands
 Twitch auth is implicit OAuth flow — token stored in `localStorage` via `src/lib/twitchAuth.ts`. Components that need the user call `useTwitchAuth`. Frontend env vars must be prefixed `VITE_` to be accessible at `import.meta.env.VITE_*`.
 
 Overlay pages inject a `<style>` tag synchronously in `main.tsx` (before React renders) to set `background: transparent` for OBS — this cannot be done in a `useEffect` because the first paint would be non-transparent.
+
+**Overlay frontend libs** (used by `OverlaySource.tsx`):
+- `lib/eventSub.ts` — client-side Twitch EventSub WebSocket; subscribes to `channel.follow`, `channel.subscribe`, `channel.cheer`, `channel.raid` using the viewer's token and a session ID; each overlay type has a fixed subscription config in `SUBS`
+- `lib/twitchChat.ts` — lightweight TMI WebSocket client for reading live chat in overlay pages
+- `lib/sounds.ts` — plays notification sounds for overlay events
+- `lib/twitchApi.ts` — Helix API helpers used by the frontend (stream info, user lookup)
 
 ## Token Encryption
 

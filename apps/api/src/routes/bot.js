@@ -202,10 +202,30 @@ router.get('/channels/:login/commands', async (req, res) => {
 
   const channelId = channel.rows[0].twitch_user_id;
   const { rows } = await pool.query(
-    'SELECT command, enabled, response FROM command_configs WHERE twitch_user_id = $1 AND enabled = true',
+    'SELECT command, enabled, response FROM command_configs WHERE twitch_user_id = $1',
     [channelId]
   );
-  res.json(rows.map(r => ({ ...r, builtin: BUILTIN_COMMANDS.has(r.command) })));
+
+  // Build override map from DB rows
+  const configMap = Object.fromEntries(rows.map(r => [r.command, r]));
+
+  const result = [];
+
+  // Built-ins are enabled by default — only excluded if explicitly disabled in DB
+  for (const cmd of BUILTIN_COMMANDS) {
+    const override = configMap[cmd];
+    if (override && !override.enabled) continue;
+    result.push({ command: cmd, enabled: true, response: override?.response ?? null, builtin: true });
+  }
+
+  // Custom commands — non-builtin rows that are enabled and have a response template
+  for (const row of rows) {
+    if (BUILTIN_COMMANDS.has(row.command)) continue;
+    if (!row.enabled || !row.response) continue;
+    result.push({ command: row.command, enabled: true, response: row.response, builtin: false });
+  }
+
+  res.json(result);
 });
 
 router.post('/bot/reconnect', async (req, res) => {

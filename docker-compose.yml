@@ -58,6 +58,7 @@ services:
         VITE_TWITCH_CLIENT_ID: ${VITE_TWITCH_CLIENT_ID}
         VITE_TWITCH_REDIRECT_URI: ${VITE_TWITCH_REDIRECT_URI}
         VITE_API_URL: ${VITE_API_URL}
+        VITE_DOC_URL: ${VITE_DOC_URL}
     restart: unless-stopped
     ports:
       - "${FRONTEND_PORT:-5173}:80"
