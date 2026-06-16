@@ -3,6 +3,7 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import { playOverlaySound } from '../lib/sounds';
 import { connectTwitchChat } from '../lib/twitchChat';
 import { connectEventSub, extractAlertData } from '../lib/eventSub';
+import NowPlayingOverlay from './NowPlayingOverlay';
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -345,7 +346,8 @@ export default function OverlaySource() {
     };
   }, []);
 
-  const isChat = id === 'chat';
+  const isChat       = id === 'chat';
+  const isNowPlaying = id === 'nowplaying';
 
   const trigger = useCallback(() => {
     if (isChat) {
@@ -388,7 +390,7 @@ export default function OverlaySource() {
   // Credentials are in the URL fragment (#token=...&uid=...) so OBS browser sources
   // (separate localStorage) can connect. Fragments are never sent to servers.
   useEffect(() => {
-    if (isChat) return;
+    if (isChat || isNowPlaying) return;
     // Read from fragment — not sent to servers, safe for credentials
     const frag  = new URLSearchParams(window.location.hash.slice(1));
     let token   = frag.get('token') ?? '';
@@ -419,7 +421,7 @@ export default function OverlaySource() {
   // Auto-play if ?autoplay=1 (useful for quick testing of alert overlays)
   const hasAutoplay = searchParams.get('autoplay') === '1';
   useEffect(() => {
-    if (!hasAutoplay || isChat) return;
+    if (!hasAutoplay || isChat || isNowPlaying) return;
     const t = setTimeout(() => triggerRef.current(), 600);
     return () => clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -427,9 +429,9 @@ export default function OverlaySource() {
 
   return (
     <>
-      {playing && isChat  && <ChatOverlay config={config} />}
-      {playing && !isChat && <AlertOverlay id={id} config={config} eventData={alertData} />}
-
+      {isNowPlaying && <NowPlayingOverlay />}
+      {!isNowPlaying && playing && isChat  && <ChatOverlay config={config} />}
+      {!isNowPlaying && playing && !isChat && <AlertOverlay id={id} config={config} eventData={alertData} />}
     </>
   );
 }

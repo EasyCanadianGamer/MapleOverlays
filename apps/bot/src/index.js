@@ -138,6 +138,12 @@ const manager = new EventSubManager(
     if (!reply) return;
     try {
       await sendMessage(broadcasterId, reply);
+      if (messageText.trim().split(' ')[0] === '!song') {
+        pool.query(
+          'UPDATE channels SET nowplaying_triggered_at = NOW() WHERE twitch_user_id = $1',
+          [broadcasterId]
+        ).catch(err => console.error('Failed to set nowplaying_triggered_at:', err.message));
+      }
       await logEvent(broadcasterId, 'command', chatterLogin, { command: messageText.split(' ')[0] });
     } catch (err) {
       console.error(`Failed to send message to #${broadcasterLogin}:`, err.message);

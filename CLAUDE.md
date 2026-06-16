@@ -16,7 +16,7 @@ apps/
   bot/        Twitch EventSub WebSocket bot (Helix API for sending messages)
   frontend/   React + Vite SPA (TypeScript)
 packages/
-  lastfm/     getNowPlaying(username) — wraps Last.fm REST API
+  lastfm/     getNowPlaying(username) + getNowPlayingData(username) — wraps Last.fm REST API
   shared/     Placeholder — shared utilities (currently empty)
 docs/
   public/     Astro + Starlight documentation site (@maple/docs)
@@ -25,7 +25,7 @@ test-docker/  Postgres-only docker-compose for local dev
 
 ## Common Commands
 
-All commands run from the repo root unless noted.
+All commands run from the repo root unless noted. Requires Node.js >=22.12.0 and pnpm >=9.
 
 ```bash
 pnpm install                  # install all workspace deps
@@ -44,6 +44,15 @@ cd docs/public && pnpm build  # Static output to docs/public/dist/
 
 # Run bot unit tests (node:test, no external runner)
 cd apps/bot && pnpm test
+
+# Run a single bot test file
+cd apps/bot && node --test test/commands.test.js
+
+# Run lastfm package tests
+cd packages/lastfm && pnpm test
+
+# TypeScript type-check (frontend only — no build output)
+cd apps/frontend && npx tsc --noEmit
 
 # Full stack
 docker compose up --build
@@ -77,7 +86,7 @@ Postgres only, accessed via `DATABASE_URL`. The API runs migrations on startup v
 Migration files live in `apps/api/migrations/`. The bot has no migration runner — the API must start first on a fresh DB.
 
 Schema overview:
-- `channels` — one row per broadcaster who invited the bot; `access_token`/`refresh_token` stored AES-256-GCM encrypted; `automod_settings` is a JSONB boolean array `[links, caps, emoteSpam, firstTimeWarn]`; `reconnect_requested_at` is polled by the bot to trigger EventSub reconnect
+- `channels` — one row per broadcaster who invited the bot; `access_token`/`refresh_token` stored AES-256-GCM encrypted; `automod_settings` is a JSONB boolean array `[links, caps, emoteSpam, firstTimeWarn]`; `reconnect_requested_at` is polled by the bot to trigger EventSub reconnect; `nowplaying_triggered_at` is stamped by the bot when `!song` is used and polled by the Now Playing overlay to force-show immediately
 - `command_configs` — per-channel command overrides (enabled flag + custom response template)
 - `watchtimes` — accumulated viewer watchtime in seconds per channel
 - `channel_events` — activity feed log; `event_type` values: `follow`, `sub`, `cheer`, `raid`, `mod_action`; indexed by `(channel_user_id, created_at DESC)`
@@ -95,6 +104,8 @@ All routes are in `apps/api/src/routes/bot.js`:
 | Method | Path | Description |
 |---|---|---|
 | GET | `/nowplaying?user=<lastfm>` | Now-playing text (in `api/src/index.js`) |
+| GET | `/nowplaying/json?user=<lastfm>` | Now-playing structured data `{ isPlaying, track, artist, album, albumArt }` (in `api/src/index.js`) |
+| GET | `/nowplaying/triggered?channel=<login>` | Returns `{ triggered_at }` timestamp — polled by the overlay to detect `!song` triggers (public, no auth) |
 | GET | `/auth/bot/callback` | Twitch OAuth callback — exchanges code, encrypts + stores tokens |
 | GET | `/bot/status` | Returns `{ invited, active }` for the caller's channel |
 | GET | `/bot/commands` | Lists command configs for the caller's channel |
@@ -128,6 +139,8 @@ The bot (`apps/bot/src/index.js`) uses Twitch EventSub WebSocket to receive chat
 - `sessionMap` (Map) — tracks viewer chat session start times for watchtime accounting; flushed on stream-offline and on SIGINT/SIGTERM
 
 **Automod enforcement** (`enforceAutoMod` in `bot/src/index.js`): runs on every chat message before command dispatch. Checks `automod_settings[0..3]`: link filter (deletes message), caps tax (30s timeout), emote spam (30s timeout), first-time message hold (logs to `channel_events` as `mod_action`). Requires `deleteMessage` and `timeoutUser` Helix API calls with bot's own token — bot user must be a channel moderator.
+
+**Now Playing trigger**: after a successful `!song` reply, the bot fire-and-forgets `UPDATE channels SET nowplaying_triggered_at = NOW()`. The `NowPlayingOverlay` component polls `GET /nowplaying/triggered` every 5 s and force-shows the card when it sees a new timestamp.
 
 ## Adding Bot Commands
 
@@ -164,14 +177,21 @@ Response templates use `{variable}` syntax. `resolveTemplate` in `apps/bot/src/t
 
 React Router with these top-level routes:
 - `/` → `Landing.tsx`
+- `/login` → `AuthGate.tsx` (redirects to Twitch OAuth if not authenticated)
 - `/dashboard` → `DashboardLayout.tsx` (wraps dashboard sub-pages via nested routes)
 - `/auth/twitch/callback` → `TwitchCallback.tsx`
-- `/overlays/:id` → `OverlaySource.tsx` (transparent OBS browser-source URL)
+- `/overlays/:id` → `OverlaySource.tsx` (transparent OBS browser-source URL; `id=nowplaying` renders `NowPlayingOverlay.tsx` directly and skips Twitch EventSub entirely)
 - `/commands/:login` → `CommandsList.tsx` (public viewer-facing command list)
 
 Dashboard sub-pages (rendered inside `DashboardLayout`): `Bot.tsx`, `BotCommands.tsx`, `BotModerator.tsx`, `BotSettings.tsx`, `Overlays.tsx`, `Settings.tsx`, `StreamManager.tsx`.
 
 Twitch auth is implicit OAuth flow — token stored in `localStorage` via `src/lib/twitchAuth.ts`. Components that need the user call `useTwitchAuth`. Frontend env vars must be prefixed `VITE_` to be accessible at `import.meta.env.VITE_*`.
+
+**Hooks** (`src/hooks/`): `useTwitchAuth` — current Twitch user + token; `useStreamInfo` — live stream metadata; `useTwitchStats` — follow/sub counts and channel stats.
+
+**Components** (`src/components/`):
+- `layout/` — `DashboardLayout` (nested route shell), `Sidebar`, `TopBar`
+- `ui/` — shared primitives: `Button`, `Card`, `Toggle`, `Icon`, `LivePill`, `TierBadge`, `Eyebrow`, `MapleMark`
 
 Overlay pages inject a `<style>` tag synchronously in `main.tsx` (before React renders) to set `background: transparent` for OBS — this cannot be done in a `useEffect` because the first paint would be non-transparent.
 
@@ -180,6 +200,8 @@ Overlay pages inject a `<style>` tag synchronously in `main.tsx` (before React r
 - `lib/twitchChat.ts` — lightweight TMI WebSocket client for reading live chat in overlay pages
 - `lib/sounds.ts` — plays notification sounds for overlay events
 - `lib/twitchApi.ts` — Helix API helpers used by the frontend (stream info, user lookup)
+
+**Now Playing overlay** (`NowPlayingOverlay.tsx`): self-contained component rendered when `id === 'nowplaying'`. Manages its own 4-state machine (`hidden → entering → visible → exiting`), polls `GET /nowplaying/json` on a configurable interval, and additionally polls `GET /nowplaying/triggered` every 5 s to force-show when `!song` is used in chat. All config comes from URL params (`user`, `channel`, `duration`, `corner`, `from`, `color`, `font`, `fcolor`, `style`, `poll`). CSS keyframes for the animations live in `src/styles/global.css` as `np-card-enter-*`, `np-art-pop`, `np-text-reveal-*`, `np-card-exit-*`.
 
 ## Token Encryption
 

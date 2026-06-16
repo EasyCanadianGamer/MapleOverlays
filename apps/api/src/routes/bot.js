@@ -297,4 +297,20 @@ router.put('/bot/automod', async (req, res) => {
   }
 });
 
+// Public — no auth needed; returns the last time !song was used in this channel
+router.get('/nowplaying/triggered', async (req, res) => {
+  const { channel } = req.query;
+  if (!channel) return res.status(400).json({ error: 'Missing channel' });
+  try {
+    const { rows } = await pool.query(
+      'SELECT nowplaying_triggered_at FROM channels WHERE twitch_login = $1',
+      [channel]
+    );
+    res.json({ triggered_at: rows[0]?.nowplaying_triggered_at ?? null });
+  } catch (err) {
+    console.error('GET /nowplaying/triggered error:', err);
+    res.status(500).json({ error: 'Internal error' });
+  }
+});
+
 module.exports = router;

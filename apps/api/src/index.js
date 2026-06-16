@@ -1,6 +1,6 @@
 const express = require('express');
 const cors = require('cors');
-const { getNowPlaying } = require('@maple/lastfm');
+const { getNowPlaying, getNowPlayingData } = require('@maple/lastfm');
 const botRouter = require('./routes/bot');
 const { migrate } = require('./migrate');
 
@@ -23,6 +23,19 @@ app.get('/nowplaying', async (req, res) => {
     res.type('text/plain').send(result);
   } catch (err) {
     res.status(err.status || 502).type('text/plain').send(`Error: ${err.message}`);
+  }
+});
+
+app.get('/nowplaying/json', async (req, res) => {
+  const { user } = req.query;
+  if (!user) {
+    return res.status(400).json({ error: 'Missing required query parameter: user' });
+  }
+  try {
+    const result = await getNowPlayingData(user);
+    res.json(result);
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message });
   }
 });
 

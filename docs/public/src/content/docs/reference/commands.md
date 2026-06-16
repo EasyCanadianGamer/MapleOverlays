@@ -11,7 +11,7 @@ All commands are prefixed with `!`. Built-in commands are always available; they
 |---------|-------------|
 | `!ping` | Replies `pong` — useful for checking if the bot is active. |
 | `!uptime` | Reports how long the stream has been live. Replies with a "stream is offline" message if not live. |
-| `!song` | Shows the track currently scrobbling on the channel's Last.fm account. Requires a Last.fm username set in Settings. |
+| `!song` | Shows the track currently scrobbling on the channel's Last.fm account. Requires a Last.fm username set in Settings. Also triggers the [Now Playing overlay](/guides/overlays/#now-playing-overlay) in OBS immediately. |
 | `!followage` | Tells the chatter how long they've been following the channel. |
 | `!accountage` | Tells the chatter how long their Twitch account has existed. |
 | `!watchtime` | Reports the chatter's accumulated watchtime in this channel. |

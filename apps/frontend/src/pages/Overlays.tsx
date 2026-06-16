@@ -33,6 +33,14 @@ interface OverlayConfig {
   chatInAnim?: string;
   chatOutAnim?: string;
   chatMsgTimeout?: number;
+  // Now Playing overlay
+  npUser?:      string;
+  npFont?:      string;
+  npFontColor?: string;
+  npCorner?:    'bottom-left' | 'bottom-right' | 'top-left' | 'top-right';
+  npFrom?:      'left' | 'right' | 'auto';
+  npStyle?:     'glass' | 'dark' | 'stripe';
+  npPoll?:      number;
 }
 
 // ── Data ──────────────────────────────────────────────────────────────────────
@@ -42,7 +50,8 @@ const OVERLAYS: OverlayItem[] = [
   { id: 'sub',    name: 'Subscriber alert', desc: 'Big celebration with sound',           color: '#FFB627', icon: 'star'  },
   { id: 'bits',   name: 'Bits cheer',       desc: 'Animated counter, scales with amount', color: '#5BA8FF', icon: 'zap'   },
   { id: 'raid',   name: 'Raid welcome',     desc: 'Incoming raider parade',               color: '#22C58B', icon: 'users' },
-  { id: 'chat',   name: 'Chat box',          desc: 'Animated chat overlay, any corner',    color: '#B7AAAE', icon: 'bot'   },
+  { id: 'chat',       name: 'Chat box',    desc: 'Animated chat overlay, any corner',    color: '#B7AAAE', icon: 'bot'   },
+  { id: 'nowplaying', name: 'Now Playing', desc: 'Animated music card, polls Last.fm',   color: '#AC0747', icon: 'music' },
 ];
 
 const DEFAULT_CONFIGS: Record<string, OverlayConfig> = {
@@ -50,7 +59,12 @@ const DEFAULT_CONFIGS: Record<string, OverlayConfig> = {
   sub:    { accentColor: '#FFB627', duration: 7,  sound: true,  message: '{user} just subscribed!' },
   bits:   { accentColor: '#5BA8FF', duration: 5,  sound: true,  message: '{user} cheered {amount} bits!' },
   raid:   { accentColor: '#22C58B', duration: 8,  sound: true,  message: '{user} is raiding with {viewers} viewers!' },
-  chat:   { accentColor: '#B7AAAE', duration: 30, sound: false, message: '', chatWidth: 30, chatHeight: 25, chatBgOpacity: 75, chatFontFamily: 'Geist', chatFontSize: 15, chatUsernameColor: '', chatStyle: 'contained', chatCorner: 'bottom-left', chatInAnim: 'slide-left', chatOutAnim: 'fade-out', chatMsgTimeout: 0 },
+  chat:       { accentColor: '#B7AAAE', duration: 30, sound: false, message: '', chatWidth: 30, chatHeight: 25, chatBgOpacity: 75, chatFontFamily: 'Geist', chatFontSize: 15, chatUsernameColor: '', chatStyle: 'contained', chatCorner: 'bottom-left', chatInAnim: 'slide-left', chatOutAnim: 'fade-out', chatMsgTimeout: 0 },
+  nowplaying: {
+    accentColor: '#AC0747', duration: 10, sound: false, message: '',
+    npUser: '', npFont: 'Geist', npFontColor: '#ffffff',
+    npCorner: 'bottom-left', npFrom: 'auto', npStyle: 'glass', npPoll: 15,
+  },
 };
 
 // Overlays that have a synthesised default sound
@@ -96,6 +110,20 @@ function buildOverlayUrl(id: string, config: OverlayConfig): string {
     msg:      config.message,
   });
 
+  if (id === 'nowplaying') {
+    if (config.npUser)                               params.set('user',    config.npUser);
+    if (config.npFont && config.npFont !== 'Geist')  params.set('font',    config.npFont);
+    if (config.npFontColor && config.npFontColor !== '#ffffff') params.set('fcolor', config.npFontColor);
+    if (config.npCorner && config.npCorner !== 'bottom-left')   params.set('corner', config.npCorner);
+    if (config.npFrom  && config.npFrom  !== 'auto')            params.set('from',   config.npFrom);
+    if (config.npStyle && config.npStyle !== 'glass')           params.set('style',  config.npStyle);
+    if (config.npPoll  != null && config.npPoll  !== 15)        params.set('poll',   String(config.npPoll));
+    try {
+      const stored = JSON.parse(localStorage.getItem('twitch_user') ?? '{}') as { login?: string };
+      if (stored.login) params.set('channel', stored.login);
+    } catch { /* ignore */ }
+  }
+
   if (id === 'chat') {
     try {
       const stored = JSON.parse(localStorage.getItem('twitch_user') ?? '{}') as { login?: string };
@@ -118,7 +146,7 @@ function buildOverlayUrl(id: string, config: OverlayConfig): string {
   // localStorage) can connect to EventSub. Using a fragment (#) keeps credentials
   // out of server logs and referrer headers — fragments are never sent to servers.
   let fragment = '';
-  if (!['chat', 'brb'].includes(id)) {
+  if (!['chat', 'brb', 'nowplaying'].includes(id)) {
     try {
       const token = localStorage.getItem('twitch_access_token');
       const user  = JSON.parse(localStorage.getItem('twitch_user') ?? '{}') as { id?: string };
@@ -333,6 +361,61 @@ function ChatPreview({ config, playing }: { config: OverlayConfig; playing: bool
 }
 
 
+
+function NowPlayingPreview({ config }: { config: OverlayConfig }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(0);
+  const user = config.npUser ?? '';
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const obs = new ResizeObserver(([entry]) => {
+      setScale(entry.contentRect.width / 1920);
+    });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
+  const params = new URLSearchParams();
+  if (user)                                                        params.set('user',   user);
+  if (config.npFont     && config.npFont     !== 'Geist')         params.set('font',   config.npFont);
+  if (config.npFontColor && config.npFontColor !== '#ffffff')      params.set('fcolor', config.npFontColor);
+  if (config.npCorner   && config.npCorner   !== 'bottom-left')   params.set('corner', config.npCorner);
+  if (config.npFrom     && config.npFrom     !== 'auto')          params.set('from',   config.npFrom);
+  if (config.npStyle    && config.npStyle    !== 'glass')         params.set('style',  config.npStyle);
+  if (config.npPoll     != null && config.npPoll !== 15)          params.set('poll',   String(config.npPoll));
+  if (config.accentColor && config.accentColor !== '#AC0747')     params.set('color',  config.accentColor);
+  try {
+    const stored = JSON.parse(localStorage.getItem('twitch_user') ?? '{}') as { login?: string };
+    if (stored.login) params.set('channel', stored.login);
+  } catch { /* ignore */ }
+
+  return (
+    <div ref={containerRef} style={{ position: 'absolute', inset: 0 }}>
+      {!user && (
+        <div style={{ position: 'absolute', bottom: 8, left: 8 }}>
+          <div style={{ fontSize: 7, color: 'rgba(255,255,255,.28)', fontFamily: 'var(--font-mono)', letterSpacing: '.1em', textTransform: 'uppercase' }}>
+            enter last.fm username
+          </div>
+        </div>
+      )}
+      {user && scale > 0 && (
+        <iframe
+          src={`/overlays/nowplaying?${params.toString()}`}
+          style={{
+            width: 1920, height: 1080, border: 'none',
+            transform: `scale(${scale})`,
+            transformOrigin: 'top left',
+            pointerEvents: 'none',
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+
 function OverlayPreview({ overlay, config, playing }: { overlay: OverlayItem; config: OverlayConfig; playing: boolean }) {
   return (
     <div style={{
@@ -351,8 +434,9 @@ function OverlayPreview({ overlay, config, playing }: { overlay: OverlayItem; co
         backgroundSize: '40px 40px',
       }} />
 
-      {overlay.id === 'chat' && <ChatPreview config={config} playing={playing} />}
-      {overlay.id !== 'chat' && <AlertPreview overlay={overlay} config={config} playing={playing} />}
+      {overlay.id === 'chat'       && <ChatPreview config={config} playing={playing} />}
+      {overlay.id === 'nowplaying' && <NowPlayingPreview config={config} />}
+      {overlay.id !== 'chat' && overlay.id !== 'nowplaying' && <AlertPreview overlay={overlay} config={config} playing={playing} />}
     </div>
   );
 }
@@ -396,7 +480,7 @@ function OverlayEditor({
   }, []);
 
   const url = buildOverlayUrl(overlay.id, config);
-  const isAlert = overlay.id !== 'chat';
+  const isAlert = !['chat', 'nowplaying'].includes(overlay.id);
 
   const playPreview = () => {
     setPlaying(true);
@@ -485,18 +569,19 @@ function OverlayEditor({
               <span style={labelTextStyle}>Duration — {config.duration}s</span>
               <input
                 type="range"
-                min={2} max={15} step={1}
+                min={2} max={overlay.id === 'nowplaying' ? 30 : 15} step={1}
                 value={config.duration}
                 onChange={e => onConfigChange({ ...config, duration: Number(e.target.value) })}
                 style={{ accentColor: config.accentColor, cursor: 'pointer' }}
               />
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--ink-4)', fontFamily: 'var(--font-mono)' }}>
-                <span>2s</span><span>15s</span>
+                <span>2s</span><span>{overlay.id === 'nowplaying' ? '30s' : '15s'}</span>
               </div>
             </div>
           )}
 
           {/* Sound */}
+          {overlay.id !== 'nowplaying' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <Toggle on={config.sound} onChange={v => onConfigChange({ ...config, sound: v })} />
@@ -523,6 +608,7 @@ function OverlayEditor({
               </div>
             )}
           </div>
+          )}
 
           {/* Chat box settings */}
           {overlay.id === 'chat' && (
@@ -728,6 +814,156 @@ function OverlayEditor({
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--ink-4)', fontFamily: 'var(--font-mono)' }}>
                   Leave unset to use each viewer&apos;s Twitch color
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Now Playing settings */}
+          {overlay.id === 'nowplaying' && (
+            <>
+              {/* Last.fm username */}
+              <div style={labelStyle}>
+                <span style={labelTextStyle}>Last.fm username</span>
+                <input
+                  type="text"
+                  value={config.npUser ?? ''}
+                  onChange={e => onConfigChange({ ...config, npUser: e.target.value })}
+                  placeholder="your_lastfm_username"
+                  style={inputStyle}
+                />
+                <div style={{ fontSize: 11, color: 'var(--ink-4)', fontFamily: 'var(--font-mono)' }}>
+                  The account whose scrobbles are polled
+                </div>
+              </div>
+
+              {/* Corner / position */}
+              <div style={labelStyle}>
+                <span style={labelTextStyle}>Position</span>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, width: 116 }}>
+                  {(['top-left','top-right','bottom-left','bottom-right'] as const).map(corner => {
+                    const active = (config.npCorner ?? 'bottom-left') === corner;
+                    const arrows: Record<string, string> = { 'top-left': '↖', 'top-right': '↗', 'bottom-left': '↙', 'bottom-right': '↘' };
+                    return (
+                      <button
+                        key={corner}
+                        onClick={() => onConfigChange({ ...config, npCorner: corner })}
+                        style={{
+                          height: 36, borderRadius: 8, fontSize: 18,
+                          border: `1px solid ${active ? config.accentColor : 'var(--border-2)'}`,
+                          background: active ? `${config.accentColor}22` : 'var(--bg-1)',
+                          color: active ? config.accentColor : 'var(--ink-3)',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {arrows[corner]}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Slide direction */}
+              <div style={labelStyle}>
+                <span style={labelTextStyle}>Slide direction</span>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {(['auto', 'left', 'right'] as const).map(d => {
+                    const active = (config.npFrom ?? 'auto') === d;
+                    return (
+                      <button
+                        key={d}
+                        onClick={() => onConfigChange({ ...config, npFrom: d })}
+                        style={{
+                          flex: 1, height: 34, borderRadius: 8, cursor: 'pointer',
+                          border: `1px solid ${active ? config.accentColor : 'var(--border-2)'}`,
+                          background: active ? `${config.accentColor}22` : 'var(--bg-1)',
+                          color: active ? config.accentColor : 'var(--ink-2)',
+                          fontFamily: 'var(--font-body)', fontSize: 13,
+                          fontWeight: active ? 600 : 500,
+                        }}
+                      >
+                        {d === 'auto' ? '↔ Auto' : d === 'left' ? '← Left' : 'Right →'}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--ink-4)', fontFamily: 'var(--font-mono)' }}>
+                  Auto matches the position corner
+                </div>
+              </div>
+
+              {/* Box style */}
+              <div style={labelStyle}>
+                <span style={labelTextStyle}>Box style</span>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {(['glass', 'dark', 'stripe'] as const).map(s => {
+                    const active = (config.npStyle ?? 'glass') === s;
+                    return (
+                      <button
+                        key={s}
+                        onClick={() => onConfigChange({ ...config, npStyle: s })}
+                        style={{
+                          flex: 1, height: 34, borderRadius: 8, cursor: 'pointer',
+                          border: `1px solid ${active ? config.accentColor : 'var(--border-2)'}`,
+                          background: active ? `${config.accentColor}22` : 'var(--bg-1)',
+                          color: active ? config.accentColor : 'var(--ink-2)',
+                          fontFamily: 'var(--font-body)', fontSize: 13,
+                          fontWeight: active ? 600 : 500,
+                        }}
+                      >
+                        {s === 'glass' ? '◻ Glass' : s === 'dark' ? '■ Dark' : '▌ Stripe'}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Font */}
+              <div style={labelStyle}>
+                <span style={labelTextStyle}>Font</span>
+                <select
+                  value={config.npFont ?? 'Geist'}
+                  onChange={e => {
+                    const f = CHAT_FONTS.find(x => x.value === e.target.value);
+                    if (f?.google) loadGoogleFont(f.value);
+                    onConfigChange({ ...config, npFont: e.target.value });
+                  }}
+                  style={{ ...inputStyle, fontFamily: `${config.npFont ?? 'Geist'}, sans-serif`, cursor: 'pointer' }}
+                >
+                  {CHAT_FONTS.map(f => (
+                    <option key={f.value} value={f.value}>{f.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Text colour */}
+              <div style={labelStyle}>
+                <span style={labelTextStyle}>Text colour</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <input
+                    type="color"
+                    value={config.npFontColor ?? '#ffffff'}
+                    onChange={e => onConfigChange({ ...config, npFontColor: e.target.value })}
+                    style={{ width: 40, height: 40, borderRadius: 10, border: '1px solid var(--border-2)', padding: 4, background: 'var(--bg-1)', cursor: 'pointer' }}
+                  />
+                  <code style={{ fontSize: 13, color: 'var(--ink-1)' }}>{config.npFontColor ?? '#ffffff'}</code>
+                </div>
+              </div>
+
+              {/* Poll interval */}
+              <div style={labelStyle}>
+                <span style={labelTextStyle}>Poll interval — {config.npPoll ?? 15}s</span>
+                <input
+                  type="range" min={10} max={60} step={5}
+                  value={config.npPoll ?? 15}
+                  onChange={e => onConfigChange({ ...config, npPoll: Number(e.target.value) })}
+                  style={{ accentColor: config.accentColor, cursor: 'pointer' }}
+                />
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--ink-4)', fontFamily: 'var(--font-mono)' }}>
+                  <span>10s</span><span>60s</span>
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--ink-4)', fontFamily: 'var(--font-mono)' }}>
+                  How often to check Last.fm for a track change
                 </div>
               </div>
             </>

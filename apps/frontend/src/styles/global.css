@@ -280,6 +280,44 @@ input, textarea, select { font-family: var(--font-body); }
   100% { transform: translate(-50%, -20px); opacity: 0; }
 }
 
+/* Now Playing overlay — enter/exit */
+@keyframes np-card-enter-left {
+  0%   { transform: translateX(-110%); opacity: 0; }
+  55%  { transform: translateX(8px);   opacity: 1; }
+  75%  { transform: translateX(-3px);  opacity: 1; }
+  100% { transform: translateX(0);     opacity: 1; }
+}
+@keyframes np-card-enter-right {
+  0%   { transform: translateX(110%);  opacity: 0; }
+  55%  { transform: translateX(-8px);  opacity: 1; }
+  75%  { transform: translateX(3px);   opacity: 1; }
+  100% { transform: translateX(0);     opacity: 1; }
+}
+@keyframes np-art-pop {
+  0%   { transform: scale(0.78); }
+  55%  { transform: scale(1.08); }
+  78%  { transform: scale(0.96); }
+  100% { transform: scale(1); }
+}
+@keyframes np-text-reveal-left {
+  0%   { opacity: 0; transform: translateX(-12px); }
+  100% { opacity: 1; transform: translateX(0); }
+}
+@keyframes np-text-reveal-right {
+  0%   { opacity: 0; transform: translateX(12px); }
+  100% { opacity: 1; transform: translateX(0); }
+}
+@keyframes np-card-exit-right {
+  0%   { transform: translateX(0);    opacity: 1; }
+  30%  { transform: translateX(14px); opacity: 1; }
+  100% { transform: translateX(110%); opacity: 0; }
+}
+@keyframes np-card-exit-left {
+  0%   { transform: translateX(0);     opacity: 1; }
+  30%  { transform: translateX(-14px); opacity: 1; }
+  100% { transform: translateX(-110%); opacity: 0; }
+}
+
 /* ============================================================
    Utility classes
    ============================================================ */
