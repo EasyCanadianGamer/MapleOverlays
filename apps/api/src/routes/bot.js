@@ -87,7 +87,7 @@ router.get('/auth/bot/callback', async (req, res) => {
     );
 
     const state = req.query.state ? `&state=${encodeURIComponent(req.query.state)}` : '';
-    res.redirect(`${process.env.FRONTEND_URL}/dashboard?view=bot-settings&invited=true${state}`);
+    res.redirect(`${process.env.FRONTEND_URL}/dashboard/bot/settings?invited=true${state}`);
   } catch (err) {
     console.error('OAuth callback error:', err);
     res.status(500).send('Internal server error');

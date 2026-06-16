@@ -77,12 +77,13 @@ In production, put a reverse proxy (nginx, Caddy, Traefik) in front of the conta
 
 | Path / hostname | Upstream |
 |----------------|---------|
-| `api.your-domain.com` | `localhost:3000` |
-| `your-domain.com` (frontend) | `localhost:5173` |
+| `your-domain.com` (frontend + API) | `localhost:5173` |
 | `docs.your-domain.com` | `localhost:4321` |
 
+The frontend nginx container automatically proxies API paths (`/bot/`, `/auth/bot/`, `/settings`, `/channels/`, `/nowplaying`) to the API container internally — you only need to expose the frontend port publicly. Set both `VITE_API_URL` and `FRONTEND_URL` to your domain (e.g. `https://your-domain.com`).
+
 <Aside type="caution">
-The API must be reachable from the internet on the same origin registered in your Twitch app's redirect URIs. Do not change `TWITCH_BOT_CALLBACK_URI` after channels have already authorized — existing tokens will still work but new invites will fail.
+Do not change `TWITCH_BOT_CALLBACK_URI` after channels have already authorized — existing tokens will still work but new invites will fail.
 </Aside>
 
 ## Data Persistence

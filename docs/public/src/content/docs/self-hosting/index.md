@@ -44,7 +44,7 @@ The API runs database migrations on startup, so the order is handled automatical
 
 | Service | Default port | Env var to change |
 |---------|-------------|-------------------|
-| API | 3000 | `API_PORT` |
+| API | 3099 | `API_PORT` |
 | Frontend | 5173 | `FRONTEND_PORT` |
 | Docs | 4321 | `DOCS_PORT` |
 | Postgres | not exposed | — |

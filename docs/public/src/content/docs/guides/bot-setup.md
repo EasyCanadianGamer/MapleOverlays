@@ -7,7 +7,7 @@ The MapleOverlays bot joins your channel via Twitch's OAuth authorization flow. 
 
 ## Invite the Bot
 
-1. Log in to the [dashboard](/dashboard) with your Twitch account.
+1. Log in to the [dashboard](https://mapleoverlays.canadian-gamer.com/dashboard) with your Twitch account.
 2. Navigate to **Bot → Settings**.
 3. Click **Invite Bot** — you'll be redirected to Twitch to authorize the `channel:bot` scope.
 4. After approving, the bot joins your channel automatically.
