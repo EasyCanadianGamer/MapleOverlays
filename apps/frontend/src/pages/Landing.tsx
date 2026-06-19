@@ -242,6 +242,7 @@ function TierCard({ name, desc, color, cta, ctaHref, features, highlight }: Tier
 }
 
 export default function Landing() {
+    const DOC_URL = import.meta.env.VITE_DOC_URL ?? 'https://docs.mapleoverlays.canadian-gamer.com';
   return (
     <div
       style={{
@@ -407,7 +408,7 @@ export default function Landing() {
                   Start free
                 </Link>
                 <a
-                  href="https://github.com/EasyCanadianGamer/MapleOverlays"
+                  href={DOC_URL}
                   target="_blank"
                   rel="noopener noreferrer"
                   style={{
@@ -490,7 +491,7 @@ export default function Landing() {
                       color: 'var(--ink-3)',
                     }}
                   >
-                    🔒 maple.gg/dashboard
+                    🔒 mapleoverlays.com/dashboard
                   </div>
                 </div>
 
@@ -759,7 +760,13 @@ export default function Landing() {
           </span>
         </div>
         <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--ink-4)' }}>
-          MIT License
+          <a
+          href="https://www.gnu.org/licenses/agpl-3.0-standalone.html"
+          target="_blank"
+          rel="noopener noreferrer"
+          >
+              AGPL-3.0 License
+          </a>
         </div>
       </footer>
     </div>

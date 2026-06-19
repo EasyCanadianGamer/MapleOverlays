@@ -14,7 +14,7 @@ services:
       dockerfile: apps/api/Dockerfile
     restart: unless-stopped
     ports:
-      - "${API_PORT:-3099}:3099"
+      - "${API_PORT:-3099}:3000"
     environment:
       PORT: "3000"
       LASTFM_API_KEY: ${LASTFM_API_KEY}

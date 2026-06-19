@@ -4,7 +4,7 @@ import {
   Layout, Image, Terminal, Bot, Bell, Settings, Play, Square, Eye,
   Star, Plus, Copy, Tv, PlayCircle, Users, Zap, ChevronRight,
   Search, Gift, Heart, Upload, RefreshCw, Code, GitBranch, Check,
-  MessageSquare, Music, ShieldCheck, Trash2, Activity,
+  MessageSquare, Music, ShieldCheck, Trash2, Activity, Timer, Hash,
 } from 'lucide-react';
 
 const icons: Record<string, FC<LucideProps>> = {
@@ -37,7 +37,10 @@ const icons: Record<string, FC<LucideProps>> = {
   music:    Music,
   shield:   ShieldCheck,
   trash:    Trash2,
+  'trash-2': Trash2,
   activity: Activity,
+  timer:    Timer,
+  hash:     Hash,
 };
 
 interface IconProps {

@@ -11,6 +11,9 @@ const CONFIG_TTL = 60_000;
 // Tracks when each viewer first chatted in the current live session
 const sessionMap = new Map();
 
+const chatLineCount = new Map();
+const timerChatCheckpoint = new Map();
+
 async function getChannelData(broadcasterId) {
   const hit = configCache.get(broadcasterId);
   if (hit && Date.now() - hit.fetchedAt < CONFIG_TTL) return hit;
@@ -103,6 +106,7 @@ const manager = new EventSubManager(
     if (!sessionMap.has(broadcasterId)) sessionMap.set(broadcasterId, new Map());
     const channelSession = sessionMap.get(broadcasterId);
     if (!channelSession.has(chatterLogin)) channelSession.set(chatterLogin, Date.now());
+    chatLineCount.set(broadcasterId, (chatLineCount.get(broadcasterId) ?? 0) + 1);
 
     const { commandConfigs, lastfmUsername, accessToken, offlineSince, tipUrl, automodSettings } = await getChannelData(broadcasterId)
       .catch((err) => {
@@ -187,6 +191,63 @@ async function subscribeAll() {
   }
 }
 
+function startTimerLoop() {
+  return setInterval(async () => {
+    const channelIds = manager.getChannelIds();
+    if (channelIds.length === 0) return;
+
+    let timers;
+    try {
+      const { rows } = await pool.query(
+        `SELECT t.id, t.twitch_user_id, t.message,
+                t.online_interval, t.offline_interval, t.chat_lines,
+                t.last_fired_at,
+                c.offline_since
+         FROM bot_timers t
+         JOIN channels c ON c.twitch_user_id = t.twitch_user_id
+         WHERE t.twitch_user_id = ANY($1) AND t.enabled = true`,
+        [channelIds]
+      );
+      timers = rows;
+      // Prune deleted timers from checkpoint map
+      const activeIds = new Set(rows.map(r => r.id));
+      for (const id of timerChatCheckpoint.keys()) {
+        if (!activeIds.has(id)) timerChatCheckpoint.delete(id);
+      }
+    } catch (err) {
+      console.error('Timer loop DB query failed:', err.message);
+      return;
+    }
+
+    const now = Date.now();
+
+    for (const timer of timers) {
+      const isOnline = !timer.offline_since;
+      // 0 means disabled for this stream state
+      const interval = isOnline ? timer.online_interval : timer.offline_interval;
+      if (interval === 0) continue;
+
+      const lastFired = timer.last_fired_at ? new Date(timer.last_fired_at).getTime() : 0;
+      if (now - lastFired < interval * 1000) continue;
+
+      const channelLines = chatLineCount.get(timer.twitch_user_id) ?? 0;
+      const checkpointLines = timerChatCheckpoint.get(timer.id) ?? 0;
+      if (channelLines - checkpointLines < timer.chat_lines) continue;
+
+      try {
+        await sendMessage(timer.twitch_user_id, timer.message);
+        await pool.query(
+          'UPDATE bot_timers SET last_fired_at = NOW() WHERE id = $1',
+          [timer.id]
+        );
+        timerChatCheckpoint.set(timer.id, channelLines);
+      } catch (err) {
+        console.error(`Timer ${timer.id} fire failed for channel ${timer.twitch_user_id}:`, err.message);
+      }
+    }
+  }, 60_000);
+}
+
 async function pollNewChannels() {
   // Check for reconnect requests
   const reconnectRows = await pool.query(
@@ -226,6 +287,7 @@ async function pollNewChannels() {
 }
 
 let pollInterval = null;
+let timerInterval = null;
 
 async function main() {
   await manager.connect();
@@ -233,6 +295,7 @@ async function main() {
 
   await subscribeAll();
   pollInterval = setInterval(pollNewChannels, 30_000);
+  timerInterval = startTimerLoop();
 
   console.log('MapleBot ready');
 }
@@ -240,6 +303,7 @@ async function main() {
 async function shutdown(signal) {
   console.log(`\nReceived ${signal} — flushing watchtimes and shutting down...`);
   if (pollInterval) clearInterval(pollInterval);
+  if (timerInterval) clearInterval(timerInterval);
   const channelIds = [...sessionMap.keys()];
   await Promise.allSettled(channelIds.map(id => flushWatchtimes(id)));
   console.log('Watchtimes flushed. Goodbye.');

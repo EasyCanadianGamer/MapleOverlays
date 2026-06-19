@@ -54,6 +54,11 @@ cd packages/lastfm && pnpm test
 # TypeScript type-check (frontend only — no build output)
 cd apps/frontend && npx tsc --noEmit
 
+# Build frontend for production (SPA — outputs to apps/frontend/dist/)
+cd apps/frontend && pnpm build
+
+# The frontend has no test runner configured (no Vitest/Jest)
+
 # Full stack
 docker compose up --build
 ```
@@ -76,6 +81,7 @@ Copy `.env.example` to `.env` at the repo root. Key variables:
 | `DATABASE_URL` | api, bot |
 | `VITE_API_URL` | frontend |
 | `FRONTEND_URL` | api (CORS origin + !commands URL) |
+| `PORT` | api (HTTP listen port — defaults to `3000`) |
 
 Both `api/src/crypto.js` and `bot/src/crypto.js` throw on startup if `ENCRYPTION_KEY` is missing or not 64 hex chars.
 
@@ -99,12 +105,14 @@ cd test-docker && POSTGRES_PASSWORD=yourpassword docker compose up -d
 
 ## API Routes
 
-All routes are in `apps/api/src/routes/bot.js`:
+Routes are split between two files:
+- `apps/api/src/index.js` — `/nowplaying`, `/nowplaying/json`, `/bot/token-helper`
+- `apps/api/src/routes/bot.js` — all authenticated/bot routes
 
 | Method | Path | Description |
 |---|---|---|
-| GET | `/nowplaying?user=<lastfm>` | Now-playing text (in `api/src/index.js`) |
-| GET | `/nowplaying/json?user=<lastfm>` | Now-playing structured data `{ isPlaying, track, artist, album, albumArt }` (in `api/src/index.js`) |
+| GET | `/nowplaying?user=<lastfm>` | Now-playing text |
+| GET | `/nowplaying/json?user=<lastfm>` | Now-playing structured data `{ isPlaying, track, artist, album, albumArt }` |
 | GET | `/nowplaying/triggered?channel=<login>` | Returns `{ triggered_at }` timestamp — polled by the overlay to detect `!song` triggers (public, no auth) |
 | GET | `/auth/bot/callback` | Twitch OAuth callback — exchanges code, encrypts + stores tokens |
 | GET | `/bot/status` | Returns `{ invited, active }` for the caller's channel |
@@ -118,7 +126,7 @@ All routes are in `apps/api/src/routes/bot.js`:
 | GET | `/bot/activity` | Returns recent `channel_events` rows for the caller's channel |
 | GET | `/bot/automod` | Returns `automod_settings` array for the caller's channel |
 | PUT | `/bot/automod` | Updates `automod_settings` array |
-| GET | `/bot/token-helper` | HTML page that extracts `BOT_ACCESS_TOKEN` from the OAuth fragment (dev utility, in `api/src/index.js`) |
+| GET | `/bot/token-helper` | HTML page that extracts `BOT_ACCESS_TOKEN` from the OAuth fragment (dev utility) |
 
 Routes that mutate data call `getCallerTwitchId()` to verify the Bearer token against Twitch's `/helix/users` endpoint and check IDOR.
 

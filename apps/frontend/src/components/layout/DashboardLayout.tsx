@@ -6,6 +6,8 @@ import Overlays from '../../pages/Overlays';
 import BotCommands from '../../pages/BotCommands';
 import BotSettings from '../../pages/BotSettings';
 import BotModerator from '../../pages/BotModerator';
+import BotTimers from '../../pages/BotTimers';
+import BotCounters from '../../pages/BotCounters';
 import Settings from '../../pages/Settings';
 import { useTwitchAuth } from '../../hooks/useTwitchAuth';
 import { useTwitchStats } from '../../hooks/useTwitchStats';
@@ -22,6 +24,8 @@ function pathnameToView(pathname: string): ViewId {
   if (pathname.startsWith('/dashboard/bot/commands')) return 'bot-commands';
   if (pathname.startsWith('/dashboard/bot/settings')) return 'bot-settings';
   if (pathname.startsWith('/dashboard/bot/mod'))      return 'bot-moderator';
+  if (pathname.startsWith('/dashboard/bot/timers'))   return 'bot-timers';
+  if (pathname.startsWith('/dashboard/bot/counters')) return 'bot-counters';
   if (pathname.startsWith('/dashboard/settings'))     return 'settings';
   return 'manager';
 }
@@ -32,6 +36,8 @@ function viewToPath(view: ViewId): string {
     case 'bot-commands':  return '/dashboard/bot/commands';
     case 'bot-settings':  return '/dashboard/bot/settings';
     case 'bot-moderator': return '/dashboard/bot/mod';
+    case 'bot-timers':    return '/dashboard/bot/timers';
+    case 'bot-counters':  return '/dashboard/bot/counters';
     case 'settings':      return '/dashboard/settings';
     default:              return '/dashboard';
   }
@@ -82,6 +88,8 @@ export default function DashboardLayout() {
     'bot-commands': <BotCommands twitchUser={twitchUser} />,
     'bot-settings': <BotSettings twitchUser={twitchUser} />,
     'bot-moderator': <BotModerator />,
+    'bot-timers':    <BotTimers />,
+    'bot-counters':  <BotCounters />,
     settings:       <Settings />,
   };
 

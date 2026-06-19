@@ -33,6 +33,8 @@ const TEMPLATE_VARS = [
   { key: '{1.game}',           hint: "Game the mentioned user is currently playing" },
   { key: '{user.follow}',      hint: 'How long the chatter has been following' },
   { key: '{user.subscribe}',   hint: "Chatter's subscription tier (if subscribed)" },
+  { key: '{count}',            hint: "Increment this command's counter and show the value" },
+  { key: '{1.count}',          hint: "Increment the per-target counter for the arg user (e.g. !hug @alice → alice's count)" },
 ] as const;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -80,7 +82,7 @@ function VarChips({ inputRef, setter }: { inputRef: React.RefObject<HTMLInputEle
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type CmdCfg = { enabled: boolean; response: string };
-type CustomCmd = { command: string; enabled: boolean; response: string };
+type CustomCmd = { command: string; enabled: boolean; response: string; count: number };
 
 // ── Main component ────────────────────────────────────────────────────────────
 
@@ -120,7 +122,7 @@ export default function BotCommands({ twitchUser }: BotCommandsProps) {
     if (!twitchUser || !token) return;
     fetch(`${apiUrl}/bot/commands`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
-      .then((data: Array<{ command: string; enabled: boolean; response: string | null; builtin: boolean }>) => {
+      .then((data: Array<{ command: string; enabled: boolean; response: string | null; count: number; builtin: boolean }>) => {
         setCommandConfigs(prev => {
           const next = { ...prev };
           for (const cfg of data.filter(d => d.builtin)) {
@@ -131,7 +133,7 @@ export default function BotCommands({ twitchUser }: BotCommandsProps) {
         setCustomCommands(
           data
             .filter(d => !d.builtin)
-            .map(d => ({ command: d.command, enabled: d.enabled, response: d.response ?? '' }))
+            .map(d => ({ command: d.command, enabled: d.enabled, response: d.response ?? '', count: d.count ?? 0 }))
         );
       })
       .catch(() => {});
@@ -196,10 +198,10 @@ export default function BotCommands({ twitchUser }: BotCommandsProps) {
         const existing = prev.findIndex(c => c.command === name);
         if (existing >= 0) {
           const next = [...prev];
-          next[existing] = { command: name, enabled: true, response: newResponse.trim() };
+          next[existing] = { command: name, enabled: true, response: newResponse.trim(), count: prev[existing].count ?? 0 };
           return next;
         }
-        return [...prev, { command: name, enabled: true, response: newResponse.trim() }];
+        return [...prev, { command: name, enabled: true, response: newResponse.trim(), count: 0 }];
       });
       setIsCreating(false);
       setNewName('');
@@ -466,12 +468,38 @@ export default function BotCommands({ twitchUser }: BotCommandsProps) {
                         <VarChips inputRef={editInputRef} setter={setEditDraft} />
                       </>
                     ) : (
-                      <div style={{
-                        fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--ink-2)',
-                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                      }}>
-                        → {cmd.response}
-                      </div>
+                      <>
+                        <div style={{
+                          fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--ink-2)',
+                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                        }}>
+                          → {cmd.response}
+                        </div>
+                        {(cmd.response.includes('{count}') || cmd.response.includes('{1.count}')) && (
+                          <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                            {cmd.response.includes('{count}') && (
+                              <span style={{
+                                display: 'inline-flex', alignItems: 'center', gap: 4,
+                                padding: '1px 8px', borderRadius: 999,
+                                background: 'rgba(193,47,93,.14)', border: '1px solid rgba(193,47,93,.3)',
+                                fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--maple-300)',
+                              }}>
+                                #{cmd.count}
+                              </span>
+                            )}
+                            {cmd.response.includes('{1.count}') && (
+                              <span style={{
+                                display: 'inline-flex', alignItems: 'center', gap: 4,
+                                padding: '1px 8px', borderRadius: 999,
+                                background: 'rgba(100,100,180,.12)', border: '1px solid rgba(100,100,180,.25)',
+                                fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-2)',
+                              }}>
+                                per-target
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                   {isEditing ? (

@@ -59,7 +59,8 @@ async function handleCommand(message, {
   const parts = text.startsWith('!') ? text.slice(1).split(/\s+/) : [];
   const arg   = (parts[1] ?? '').replace(/^@/, '') || null;
 
-  const ctx = { broadcasterId, broadcasterLogin, chatterId, chatterLogin, arg, accessToken };
+  const commandName = parts[0]?.toLowerCase() ?? null;
+  const ctx = { broadcasterId, broadcasterLogin, chatterId, chatterLogin, arg, accessToken, command: commandName };
 
   function cfg(key) {
     return commandConfigs[key] ?? { enabled: true, response: null };

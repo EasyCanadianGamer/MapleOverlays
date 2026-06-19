@@ -5,6 +5,7 @@ const {
   getFollowAge,
   getSubAge,
 } = require('./twitch');
+const defaultPool = require('./db');
 
 function sinceWhen(isoString) {
   const days = Math.floor((Date.now() - new Date(isoString).getTime()) / 86_400_000);
@@ -14,13 +15,13 @@ function sinceWhen(isoString) {
   return `${Math.floor(days / 365)}yr`;
 }
 
-async function resolveTemplate(template, { broadcasterId, broadcasterLogin, chatterId, chatterLogin, arg, accessToken }) {
+async function resolveTemplate(template, { broadcasterId, broadcasterLogin, chatterId, chatterLogin, arg, accessToken, command } = {}, { db } = {}) {
   if (typeof template !== 'string') return '';
+  const pool = db ?? defaultPool;
 
   // Collect unique variable names used in this template
   const used = new Set();
   for (const [, key] of template.matchAll(/\{([^}]+)\}/g)) {
-    // Normalize alias
     used.add(key === 'channel.game' ? 'game' : key);
   }
 
@@ -57,7 +58,6 @@ async function resolveTemplate(template, { broadcasterId, broadcasterLogin, chat
         return channel?.game_name ?? '[unavailable]';
       } catch { return '[unavailable]'; }
     };
-    // channel.game is an alias — resolve to same value after substitution
   }
 
   if (used.has('channel.viewers')) {
@@ -78,6 +78,23 @@ async function resolveTemplate(template, { broadcasterId, broadcasterLogin, chat
         const stream = await getBroadcasterStream(userId);
         return stream?.game_name ?? '[not live]';
       } catch { return '[unavailable]'; }
+    };
+  }
+
+  if (used.has('1.count')) {
+    resolvers['1.count'] = async () => {
+      if (!broadcasterId || !command || !arg) return '0';
+      try {
+        const { rows } = await pool.query(
+          `INSERT INTO command_target_counts (twitch_user_id, command, target, count)
+           VALUES ($1, $2, $3, 1)
+           ON CONFLICT (twitch_user_id, command, target)
+           DO UPDATE SET count = command_target_counts.count + 1
+           RETURNING count`,
+          [broadcasterId, command, arg]
+        );
+        return String(rows[0]?.count ?? 0);
+      } catch { return '0'; }
     };
   }
 
@@ -105,6 +122,39 @@ async function resolveTemplate(template, { broadcasterId, broadcasterLogin, chat
         return tiers[sub.tier] ?? 'subscriber';
       } catch { return '[unavailable]'; }
     };
+  }
+
+  // {count} — atomically increment this command's counter and return new value.
+  // Requires the command to have a row in command_configs (custom commands always do;
+  // built-in commands only if the user has saved a custom response for them).
+  if (used.has('count')) {
+    resolvers['count'] = async () => {
+      if (!broadcasterId || !command) return '0';
+      try {
+        const { rows } = await pool.query(
+          'UPDATE command_configs SET count = count + 1 WHERE twitch_user_id = $1 AND command = $2 RETURNING count',
+          [broadcasterId, command]
+        );
+        return String(rows[0]?.count ?? 0);
+      } catch { return '0'; }
+    };
+  }
+
+  // {getcount commandname} — read another command's count without incrementing
+  for (const key of used) {
+    if (key.startsWith('getcount ')) {
+      const targetCmd = key.slice('getcount '.length).trim();
+      resolvers[key] = async () => {
+        if (!broadcasterId || !targetCmd) return '0';
+        try {
+          const { rows } = await pool.query(
+            'SELECT count FROM command_configs WHERE twitch_user_id = $1 AND command = $2',
+            [broadcasterId, targetCmd]
+          );
+          return String(rows[0]?.count ?? 0);
+        } catch { return '0'; }
+      };
+    }
   }
 
   // Resolve all used vars in parallel

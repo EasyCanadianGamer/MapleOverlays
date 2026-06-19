@@ -3,16 +3,20 @@ import MapleMark from '../ui/MapleMark';
 import Icon from '../ui/Icon';
 import type { TwitchUser } from '../../lib/twitchAuth';
 
-export type ViewId = 'manager' | 'overlays' | 'bot-commands' | 'bot-settings' | 'bot-moderator' | 'settings';
+const DOC_URL = import.meta.env.VITE_DOC_URL ?? 'https://docs.mapleoverlays.canadian-gamer.com';
+
+export type ViewId = 'manager' | 'overlays' | 'bot-commands' | 'bot-settings' | 'bot-moderator' | 'bot-timers' | 'bot-counters' | 'settings';
 
 export function isBotView(v: ViewId): boolean {
-  return v === 'bot-commands' || v === 'bot-settings' || v === 'bot-moderator';
+  return v === 'bot-commands' || v === 'bot-settings' || v === 'bot-moderator' || v === 'bot-timers' || v === 'bot-counters';
 }
 
 const BOT_SUB_ITEMS: Array<{ id: ViewId; icon: string; label: string }> = [
   { id: 'bot-commands',  icon: 'terminal', label: 'Commands'  },
   { id: 'bot-settings',  icon: 'settings', label: 'Settings'  },
   { id: 'bot-moderator', icon: 'shield',   label: 'Moderator' },
+  { id: 'bot-timers',    icon: 'timer',    label: 'Timers'    },
+  { id: 'bot-counters',  icon: 'hash',     label: 'Counters'  },
 ];
 
 interface SidebarProps {
@@ -110,12 +114,22 @@ export default function Sidebar({ view, onNav, twitchUser, onLogout }: SidebarPr
       height: '100vh', position: 'sticky', top: 0, zIndex: 20,
     }}>
       {/* Wordmark */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 10px 18px' }}>
+      <button
+        onClick={() => onNav('manager')}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 10,
+          padding: '4px 10px 18px', background: 'transparent',
+          border: 0, cursor: 'pointer', borderRadius: 8,
+          transition: 'opacity .12s',
+        }}
+        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = '0.75'; }}
+        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.opacity = '1'; }}
+      >
         <MapleMark size={28} />
         <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 18, letterSpacing: '-0.02em', color: 'var(--ink-0)' }}>
           MapleOverlays
         </span>
-      </div>
+      </button>
 
       <nav style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
         <NavBtn id="manager"  icon="play"     label="Stream Manager" />
@@ -157,6 +171,45 @@ export default function Sidebar({ view, onNav, twitchUser, onLogout }: SidebarPr
       </nav>
 
       <div style={{ flex: 1 }} />
+
+      {/* Quick links */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 1, marginBottom: 8 }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink-4)', textTransform: 'uppercase', letterSpacing: '0.08em', padding: '0 12px 6px' }}>
+          Quick Links
+        </div>
+        {[
+          { href: DOC_URL, icon: 'book-open', label: 'Documentation' },
+          { href: 'https://github.com/EasyCanadianGamer/MapleOverlays', icon: 'github', label: 'GitHub' },
+        ].map(({ href, icon, label }) => (
+          <a
+            key={label}
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ textDecoration: 'none' }}
+          >
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              padding: '8px 12px', borderRadius: 10,
+              color: 'var(--ink-3)', fontSize: 14, fontWeight: 500,
+              transition: 'background .12s, color .12s', cursor: 'pointer',
+            }}
+              onMouseEnter={e => {
+                (e.currentTarget as HTMLElement).style.background = 'var(--bg-2)';
+                (e.currentTarget as HTMLElement).style.color = 'var(--ink-1)';
+              }}
+              onMouseLeave={e => {
+                (e.currentTarget as HTMLElement).style.background = 'transparent';
+                (e.currentTarget as HTMLElement).style.color = 'var(--ink-3)';
+              }}
+            >
+              <Icon name={icon} size={16} />
+              {label}
+              <Icon name="external-link" size={12} style={{ marginLeft: 'auto', opacity: 0.5 }} />
+            </div>
+          </a>
+        ))}
+      </div>
 
       {/* Account chip + drop-up */}
       <div ref={chipRef} style={{ position: 'relative' }}>

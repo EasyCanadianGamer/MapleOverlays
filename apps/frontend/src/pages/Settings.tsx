@@ -34,6 +34,9 @@ function Field({ label, value, onChange, mono = false, placeholder }: FieldProps
 }
 
 const apiUrl = import.meta.env.VITE_API_URL as string;
+const DOC_URL = import.meta.env.VITE_DOC_URL ?? 'https://docs.mapleoverlays.canadian-gamer.com';
+
+
 
 export default function Settings() {
   const [lastfmUsername, setLastfmUsername] = useState('');
@@ -178,6 +181,18 @@ export default function Settings() {
           <div><span style={{ color: 'var(--ink-3)' }}>$</span> <span style={{ color: 'var(--ink-0)' }}>cp</span> .env.example .env <span style={{ color: 'var(--ink-3)' }}># add your TWITCH_CLIENT_ID</span></div>
           <div><span style={{ color: 'var(--ink-3)' }}>$</span> <span style={{ color: 'var(--ink-0)' }}>docker compose up --build</span></div>
           <div style={{ marginTop: 8, color: 'var(--ink-3)' }}>→ http://localhost:3000</div>
+        </div>
+        <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
+          <a
+            href={DOC_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 500, color: 'var(--maple-400)', textDecoration: 'none' }}
+          >
+            <Icon name="book-open" size={14} />
+            Full documentation
+            <Icon name="arrow-right" size={13} />
+          </a>
         </div>
       </Card>
     </div>

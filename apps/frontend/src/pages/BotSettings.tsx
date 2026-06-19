@@ -62,7 +62,7 @@ export default function BotSettings({ twitchUser }: BotSettingsProps) {
           Bot settings.
         </h2>
         <div style={{ color: 'var(--ink-2)', fontSize: 14 }}>
-          Manage how maple_bot connects to your channel.
+          Manage how MapleOverlay bot connects to your channel.
         </div>
       </div>
 
@@ -76,7 +76,7 @@ export default function BotSettings({ twitchUser }: BotSettingsProps) {
           }}>
             <Icon name="twitch" size={18} style={{ color: 'var(--ink-1)' }} />
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink-0)' }}>maple_bot</div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink-0)' }}>MapleOverlay bot</div>
               <div style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: botStatus?.active ? '#22C58B' : 'var(--ink-3)' }}>
                 {statusLoading
                   ? 'Checking...'

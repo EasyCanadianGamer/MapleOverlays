@@ -123,6 +123,10 @@ class EventSubManager {
     this.subscribedChannels.delete(broadcasterId);
   }
 
+  getChannelIds() {
+    return [...this.subscribedChannels];
+  }
+
   async subscribeToChannel(broadcasterId) {
     if (this.subscribedChannels.has(broadcasterId)) return;
     if (!this.sessionId) throw new Error('Not connected to EventSub — session ID not available');
