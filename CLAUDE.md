@@ -80,6 +80,7 @@ Copy `.env.example` to `.env` at the repo root. Key variables:
 | `VITE_TWITCH_CLIENT_ID` / `VITE_TWITCH_REDIRECT_URI` | frontend |
 | `DATABASE_URL` | api, bot |
 | `VITE_API_URL` | frontend |
+| `VITE_DOC_URL` | frontend (link to the documentation site) |
 | `FRONTEND_URL` | api (CORS origin + !commands URL) |
 | `PORT` | api (HTTP listen port — defaults to `3000`) |
 
@@ -93,9 +94,11 @@ Migration files live in `apps/api/migrations/`. The bot has no migration runner 
 
 Schema overview:
 - `channels` — one row per broadcaster who invited the bot; `access_token`/`refresh_token` stored AES-256-GCM encrypted; `automod_settings` is a JSONB boolean array `[links, caps, emoteSpam, firstTimeWarn]`; `reconnect_requested_at` is polled by the bot to trigger EventSub reconnect; `nowplaying_triggered_at` is stamped by the bot when `!song` is used and polled by the Now Playing overlay to force-show immediately
-- `command_configs` — per-channel command overrides (enabled flag + custom response template)
+- `command_configs` — per-channel command overrides (enabled flag, custom response template, and `count` INT for counter commands)
 - `watchtimes` — accumulated viewer watchtime in seconds per channel
 - `channel_events` — activity feed log; `event_type` values: `follow`, `sub`, `cheer`, `raid`, `mod_action`; indexed by `(channel_user_id, created_at DESC)`
+- `bot_timers` — periodic auto-messages per channel; fires when both `online_interval`/`offline_interval` (minutes, 0=disabled) has elapsed AND `chat_lines` minimum has been met since last fire
+- `command_target_counts` — per-target counts for counter commands (e.g. `!slap @user` tracked per target login)
 
 For local dev without full Docker, run just the DB:
 
@@ -107,7 +110,7 @@ cd test-docker && POSTGRES_PASSWORD=yourpassword docker compose up -d
 
 Routes are split between two files:
 - `apps/api/src/index.js` — `/nowplaying`, `/nowplaying/json`, `/bot/token-helper`
-- `apps/api/src/routes/bot.js` — all authenticated/bot routes
+- `apps/api/src/routes/bot.js` — all other routes (including public `/nowplaying/triggered` and `/channels/:login/commands`)
 
 | Method | Path | Description |
 |---|---|---|
@@ -126,6 +129,14 @@ Routes are split between two files:
 | GET | `/bot/activity` | Returns recent `channel_events` rows for the caller's channel |
 | GET | `/bot/automod` | Returns `automod_settings` array for the caller's channel |
 | PUT | `/bot/automod` | Updates `automod_settings` array |
+| GET | `/bot/timers` | Lists all timers for the caller's channel |
+| POST | `/bot/timers` | Creates a timer (max 10 per channel) |
+| PUT | `/bot/timers/:id` | Updates a timer |
+| DELETE | `/bot/timers/:id` | Deletes a timer |
+| GET | `/bot/counters` | Lists counter values (`command_configs.count`) for the caller's channel |
+| PUT | `/bot/counters/:command` | Sets the count for a command |
+| GET | `/bot/target-counts/:command` | Lists per-target count rows for a counter command |
+| PUT | `/bot/target-counts/:command/:target` | Upserts a per-target count |
 | GET | `/bot/token-helper` | HTML page that extracts `BOT_ACCESS_TOKEN` from the OAuth fragment (dev utility) |
 
 Routes that mutate data call `getCallerTwitchId()` to verify the Bearer token against Twitch's `/helix/users` endpoint and check IDOR.
@@ -135,7 +146,7 @@ Routes that mutate data call `getCallerTwitchId()` to verify the Bearer token ag
 The bot (`apps/bot/src/index.js`) uses Twitch EventSub WebSocket to receive chat messages and the Helix API (`sendMessage` in `twitch.js`) to reply. It is multi-tenant — a single process serves all channels that have invited the bot.
 
 **Key modules:**
-- `eventsub.js` — `EventSubManager` class: manages one persistent WebSocket, subscribes to `channel.chat.message` per channel, handles reconnect with exponential backoff
+- `eventsub.js` — `EventSubManager` class: manages one persistent WebSocket, subscribes to `channel.chat.message` per channel, handles reconnect with exponential backoff; handles Twitch `session_reconnect` messages by opening the new session URL and re-subscribing before closing the old socket (the close handler is guarded with `if (this.ws === ws)` to prevent stale close events from wiping the new session's state)
 - `commands.js` — `handleCommand(message, ctx)` — pure command dispatcher; returns the reply string or `null`
 - `template.js` — `resolveTemplate(template, ctx)` — async template substitution (see Template Variables below)
 - `twitch.js` — Helix API wrappers: `sendMessage`, `deleteMessage`, `timeoutUser` (automod enforcement); `getBroadcasterStream`, `getChannelInfo`, `getFollowAge`, `getSubAge`, `getUserCreatedAt`, `getUserIdByLogin`
@@ -145,6 +156,10 @@ The bot (`apps/bot/src/index.js`) uses Twitch EventSub WebSocket to receive chat
 **In-process state:**
 - `configCache` (Map) — caches per-channel DB config for 60s to reduce DB queries
 - `sessionMap` (Map) — tracks viewer chat session start times for watchtime accounting; flushed on stream-offline and on SIGINT/SIGTERM
+- `chatLineCount` (Map) — running chat-line count per channel; used by the timer loop to enforce minimum-lines thresholds
+- `timerChatCheckpoint` (Map) — chat-line count at each timer's last fire; compared against `chatLineCount` to gate re-firing
+
+**Timer loop** (`startTimerLoop` in `bot/src/index.js`): runs every minute, queries `bot_timers` joined with channel `offline_since`, and fires any timer whose interval has elapsed and whose chat-line delta since last fire meets the `chat_lines` minimum.
 
 **Automod enforcement** (`enforceAutoMod` in `bot/src/index.js`): runs on every chat message before command dispatch. Checks `automod_settings[0..3]`: link filter (deletes message), caps tax (30s timeout), emote spam (30s timeout), first-time message hold (logs to `channel_events` as `mod_action`). Requires `deleteMessage` and `timeoutUser` Helix API calls with bot's own token — bot user must be a channel moderator.
 
@@ -191,7 +206,7 @@ React Router with these top-level routes:
 - `/overlays/:id` → `OverlaySource.tsx` (transparent OBS browser-source URL; `id=nowplaying` renders `NowPlayingOverlay.tsx` directly and skips Twitch EventSub entirely)
 - `/commands/:login` → `CommandsList.tsx` (public viewer-facing command list)
 
-Dashboard sub-pages (rendered inside `DashboardLayout`): `Bot.tsx`, `BotCommands.tsx`, `BotModerator.tsx`, `BotSettings.tsx`, `Overlays.tsx`, `Settings.tsx`, `StreamManager.tsx`.
+Dashboard sub-pages (rendered inside `DashboardLayout`): `Bot.tsx`, `BotCommands.tsx`, `BotCounters.tsx`, `BotModerator.tsx`, `BotSettings.tsx`, `BotTimers.tsx`, `Overlays.tsx`, `Settings.tsx`, `StreamManager.tsx`.
 
 Twitch auth is implicit OAuth flow — token stored in `localStorage` via `src/lib/twitchAuth.ts`. Components that need the user call `useTwitchAuth`. Frontend env vars must be prefixed `VITE_` to be accessible at `import.meta.env.VITE_*`.
 

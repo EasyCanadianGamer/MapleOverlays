@@ -3,6 +3,7 @@ if (!process.env.TWITCH_CLIENT_ID)  throw new Error('Missing required env var: T
 if (!process.env.BOT_USER_ID)       throw new Error('Missing required env var: BOT_USER_ID');
 
 const WebSocket = require('ws');
+const { refreshBotToken } = require('./twitch');
 
 class EventSubManager {
   constructor(onMessage) {
@@ -22,24 +23,28 @@ class EventSubManager {
     this._onStreamState = fn;
   }
 
-  connect() {
+  connect(url = 'wss://eventsub.wss.twitch.tv/ws') {
     return new Promise((resolve, reject) => {
-      this.ws = new WebSocket('wss://eventsub.wss.twitch.tv/ws');
+      const ws = new WebSocket(url);
+      this.ws = ws;
 
-      this.ws.once('message', (data) => {
+      ws.once('message', (data) => {
         const msg = JSON.parse(data);
         if (msg.metadata.message_type === 'session_welcome') {
           this.sessionId = msg.payload.session.id;
-          this.ws.on('message', (d) => this._handleMessage(d));
-          this.ws.on('error', (err) => console.error('EventSub WebSocket error:', err.message));
+          ws.on('message', (d) => this._handleMessage(d));
+          ws.on('error', (err) => console.error('EventSub WebSocket error:', err.message));
           resolve();
         } else {
           reject(new Error(`Unexpected first message type: ${msg.metadata.message_type}`));
         }
       });
 
-      this.ws.once('error', reject);
-      this.ws.on('close', () => this._handleClose());
+      ws.once('error', reject);
+      // Only trigger reconnect logic if this socket is still the active one.
+      // _handleReconnect replaces this.ws before closing the old socket, so
+      // closing the old socket must not wipe the new session's state.
+      ws.on('close', () => { if (this.ws === ws) this._handleClose(); });
     });
   }
 
@@ -68,12 +73,35 @@ class EventSubManager {
     process.exit(1);
   }
 
+  async _handleReconnect(reconnectUrl) {
+    console.log('EventSub session_reconnect received — migrating to new session...');
+    const oldWs = this.ws;
+    try {
+      await this.connect(reconnectUrl);
+      if (this._onReconnect) {
+        try { await this._onReconnect(); } catch (err) { console.error('Reconnect callback failed:', err.message); }
+      }
+      oldWs.close();
+      console.log('EventSub session migrated successfully');
+    } catch (err) {
+      console.error('EventSub session migration failed, falling back to reconnect:', err.message);
+      oldWs.close();
+    }
+  }
+
   _handleMessage(data) {
     let msg;
     try { msg = JSON.parse(data); } catch { return; }
 
     if (!msg?.metadata?.message_type) return;
     const { message_type, subscription_type } = msg.metadata;
+
+    if (message_type === 'session_reconnect') {
+      const reconnectUrl = msg.payload?.session?.reconnect_url;
+      if (reconnectUrl) this._handleReconnect(reconnectUrl).catch(() => {});
+      return;
+    }
+
     if (message_type !== 'notification') return;
 
     const event = msg.payload?.event;
@@ -98,21 +126,30 @@ class EventSubManager {
   }
 
   async _subscribe(type, condition) {
-    const token = process.env.BOT_ACCESS_TOKEN;
-    const res = await fetch('https://api.twitch.tv/helix/eventsub/subscriptions', {
+    const body = JSON.stringify({
+      type,
+      version: '1',
+      condition,
+      transport: { method: 'websocket', session_id: this.sessionId },
+    });
+
+    const attempt = (token) => fetch('https://api.twitch.tv/helix/eventsub/subscriptions', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`,
         'Client-Id': process.env.TWITCH_CLIENT_ID,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        type,
-        version: '1',
-        condition,
-        transport: { method: 'websocket', session_id: this.sessionId },
-      }),
+      body,
     });
+
+    let res = await attempt(process.env.BOT_ACCESS_TOKEN);
+
+    if (res.status === 401 && process.env.BOT_REFRESH_TOKEN) {
+      const newToken = await refreshBotToken();
+      res = await attempt(newToken);
+    }
+
     if (!res.ok) {
       const text = await res.text();
       throw new Error(`EventSub subscription failed (${type}): ${res.status} ${text}`);

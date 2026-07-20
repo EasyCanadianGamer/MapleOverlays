@@ -165,4 +165,27 @@ async function timeoutUser(broadcasterId, userId, durationSeconds, reason) {
   }
 }
 
-module.exports = { getAppAccessToken, sendMessage, getBroadcasterStream, getChannelInfo, getUserIdByLogin, getFollowAge, getSubAge, getUserCreatedAt, deleteMessage, timeoutUser };
+async function refreshBotToken() {
+  if (!process.env.BOT_REFRESH_TOKEN) throw new Error('BOT_REFRESH_TOKEN not set — cannot refresh');
+  const res = await fetch('https://id.twitch.tv/oauth2/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: process.env.TWITCH_CLIENT_ID,
+      client_secret: process.env.TWITCH_CLIENT_SECRET,
+      grant_type: 'refresh_token',
+      refresh_token: process.env.BOT_REFRESH_TOKEN,
+    }),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Bot token refresh failed: ${res.status} ${text}`);
+  }
+  const data = await res.json();
+  process.env.BOT_ACCESS_TOKEN = data.access_token;
+  if (data.refresh_token) process.env.BOT_REFRESH_TOKEN = data.refresh_token;
+  console.log('Bot access token refreshed');
+  return data.access_token;
+}
+
+module.exports = { getAppAccessToken, refreshBotToken, sendMessage, getBroadcasterStream, getChannelInfo, getUserIdByLogin, getFollowAge, getSubAge, getUserCreatedAt, deleteMessage, timeoutUser };

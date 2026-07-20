@@ -33,6 +33,18 @@ async function getCallerTwitchId(req) {
   }
 }
 
+router.get('/auth/bot/user-token', (req, res) => {
+  const scopes = 'user:bot user:write:chat user:read:chat moderator:manage:chat_messages moderator:manage:banned_users';
+  const url = new URL('https://id.twitch.tv/oauth2/authorize');
+  url.searchParams.set('client_id', process.env.TWITCH_CLIENT_ID);
+  url.searchParams.set('redirect_uri', process.env.TWITCH_BOT_CALLBACK_URI);
+  url.searchParams.set('response_type', 'code');
+  url.searchParams.set('scope', scopes);
+  url.searchParams.set('state', 'bot_setup');
+  url.searchParams.set('force_verify', 'true');
+  res.redirect(url.toString());
+});
+
 router.get('/auth/bot/callback', async (req, res) => {
   try {
     const { code } = req.query;
@@ -57,6 +69,19 @@ router.get('/auth/bot/callback', async (req, res) => {
     }
 
     const { access_token, refresh_token } = await tokenRes.json();
+
+    if (req.query.state === 'bot_setup') {
+      return res.send(`<!doctype html><html><head><title>Bot Token</title>
+<style>body{font-family:monospace;padding:2rem;background:#0e0e10;color:#efeff1}
+pre{background:#18181b;padding:1rem;border-radius:6px;word-break:break-all;white-space:pre-wrap}
+h2{color:#a970ff}p{color:#adadb8}</style></head><body>
+<h2>Bot tokens — copy these to your .env</h2>
+<p>Add or replace these two lines in your root <code>.env</code> file, then rebuild the bot:</p>
+<pre>BOT_ACCESS_TOKEN=${access_token}
+BOT_REFRESH_TOKEN=${refresh_token}</pre>
+<p>Then run: <code>docker compose up --build -d bot</code></p>
+</body></html>`);
+    }
 
     const userRes = await fetch('https://api.twitch.tv/helix/users', {
       headers: {
@@ -189,10 +214,13 @@ router.put('/settings', async (req, res) => {
   const lastfm_username = typeof rawLastfm === 'string' ? rawLastfm.trim().slice(0, 64)  || null : null;
   const tip_url         = typeof rawTip    === 'string' ? rawTip.trim().slice(0, 512)    || null : null;
 
-  await pool.query(
+  const result = await pool.query(
     'UPDATE channels SET lastfm_username = $1, tip_url = $2 WHERE twitch_user_id = $3',
     [lastfm_username, tip_url, callerId]
   );
+  if (result.rowCount === 0) {
+    return res.status(404).json({ error: 'Channel not found — invite the bot first via the Bot Setup page.' });
+  }
   res.json({ ok: true });
 });
 
