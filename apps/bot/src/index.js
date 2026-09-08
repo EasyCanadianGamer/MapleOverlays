@@ -1,8 +1,9 @@
 const pool = require('./db');
-const { sendMessage, deleteMessage, timeoutUser } = require('./twitch');
+const { loadBotTokensFromDb, refreshBotToken, sendMessage, deleteMessage, timeoutUser, getUserInfo, getTopClipSlug, getClipDownloadUrl } = require('./twitch');
 const { handleCommand } = require('./commands');
 const EventSubManager = require('./eventsub');
 const { decrypt } = require('./crypto');
+const { isExcessiveCaps } = require('./moderation');
 
 const configCache = new Map();
 const CONFIG_TTL = 60_000;
@@ -77,12 +78,9 @@ async function enforceAutoMod(broadcasterId, chatterId, chatterLogin, messageTex
     await deleteMessage(broadcasterId, messageId).catch(() => {});
     return true;
   }
-  if (capsTax) {
-    const alpha = messageText.replace(/[^a-zA-Z]/g, '');
-    if (alpha.length >= 10 && messageText.replace(/[^A-Z]/g, '').length / alpha.length > 0.7) {
-      await timeoutUser(broadcasterId, chatterId, 30, 'Excessive caps').catch(() => {});
-      return true;
-    }
+  if (capsTax && isExcessiveCaps(messageText)) {
+    await timeoutUser(broadcasterId, chatterId, 30, 'Excessive caps').catch(() => {});
+    return true;
   }
   if (emoteSpam && emoteCount > 10) {
     await timeoutUser(broadcasterId, chatterId, 10, 'Emote spam').catch(() => {});
@@ -147,6 +145,35 @@ const manager = new EventSubManager(
           'UPDATE channels SET nowplaying_triggered_at = NOW() WHERE twitch_user_id = $1',
           [broadcasterId]
         ).catch(err => console.error('Failed to set nowplaying_triggered_at:', err.message));
+      }
+      if (messageText.trim().split(' ')[0] === '!so') {
+        const soParts = messageText.trim().split(/\s+/);
+        const soTarget = (soParts[1] ?? '').replace(/^@/, '') || null;
+        console.log(`[so] triggered by ${chatterLogin}, target: ${soTarget}`);
+        if (soTarget) {
+          (async () => {
+            try {
+              const info = await getUserInfo(soTarget);
+              console.log(`[so] getUserInfo(${soTarget}):`, info ? `id=${info.id}` : 'null');
+              const clipSlug = info ? await getTopClipSlug(info.id) : null;
+              const clipUrl  = clipSlug ? await getClipDownloadUrl(clipSlug) : null;
+              console.log(`[so] clip url: ${clipUrl ?? 'none'}`);
+              await pool.query(
+                `UPDATE channels SET
+                  shoutout_triggered_at = NOW(),
+                  shoutout_target       = $2,
+                  shoutout_clip_url     = $3,
+                  shoutout_display_name = $4,
+                  shoutout_avatar_url   = $5
+                 WHERE twitch_user_id = $1`,
+                [broadcasterId, soTarget, clipUrl, info?.display_name ?? soTarget, info?.profile_image_url ?? null]
+              );
+              console.log(`[so] DB updated for channel ${broadcasterId}`);
+            } catch (err) {
+              console.error('Failed to set shoutout trigger:', err.message);
+            }
+          })();
+        }
       }
       await logEvent(broadcasterId, 'command', chatterLogin, { command: messageText.split(' ')[0] });
     } catch (err) {
@@ -290,12 +317,22 @@ let pollInterval = null;
 let timerInterval = null;
 
 async function main() {
+  // Load persisted bot tokens from DB before connecting — ensures refreshed tokens
+  // from a previous run survive a container restart
+  await loadBotTokensFromDb();
+
   await manager.connect();
   console.log('EventSub WebSocket connected');
 
   await subscribeAll();
   pollInterval = setInterval(pollNewChannels, 30_000);
   timerInterval = startTimerLoop();
+
+  // Proactively refresh the bot token every 2 hours so it never expires mid-session
+  setInterval(async () => {
+    if (!process.env.BOT_REFRESH_TOKEN) return;
+    try { await refreshBotToken(); } catch (err) { console.error('Proactive token refresh failed:', err.message); }
+  }, 2 * 60 * 60 * 1000);
 
   console.log('MapleBot ready');
 }

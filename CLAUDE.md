@@ -99,6 +99,8 @@ Schema overview:
 - `channel_events` — activity feed log; `event_type` values: `follow`, `sub`, `cheer`, `raid`, `mod_action`; indexed by `(channel_user_id, created_at DESC)`
 - `bot_timers` — periodic auto-messages per channel; fires when both `online_interval`/`offline_interval` (minutes, 0=disabled) has elapsed AND `chat_lines` minimum has been met since last fire
 - `command_target_counts` — per-target counts for counter commands (e.g. `!slap @user` tracked per target login)
+- `bot_tokens` — single-row (`id=1`) table persisting the bot's own OAuth access/refresh tokens across container restarts; loaded into `process.env.BOT_ACCESS_TOKEN`/`BOT_REFRESH_TOKEN` on bot startup and rewritten whenever `refreshBotToken()` runs
+- `channels.shoutout_triggered_at`/`shoutout_target`/`shoutout_clip_url`/`shoutout_display_name`/`shoutout_avatar_url` — stamped when `!so <streamer>` fires in chat; polled by the Shoutout overlay to force-show a clip + name card
 
 For local dev without full Docker, run just the DB:
 
@@ -117,7 +119,9 @@ Routes are split between two files:
 | GET | `/nowplaying?user=<lastfm>` | Now-playing text |
 | GET | `/nowplaying/json?user=<lastfm>` | Now-playing structured data `{ isPlaying, track, artist, album, albumArt }` |
 | GET | `/nowplaying/triggered?channel=<login>` | Returns `{ triggered_at }` timestamp — polled by the overlay to detect `!song` triggers (public, no auth) |
-| GET | `/auth/bot/callback` | Twitch OAuth callback — exchanges code, encrypts + stores tokens |
+| GET | `/shoutout/triggered?channel=<login>` | Returns last `!so` trigger + clip/display data for the channel (public, no auth) |
+| POST | `/bot/shoutout/preview` | Sets a shoutout trigger using the caller's own channel data, for dashboard preview |
+| GET | `/auth/bot/callback` | Twitch OAuth callback — exchanges code, encrypts + stores tokens; when `state=bot_setup`, also upserts the bot's own tokens into `bot_tokens` |
 | GET | `/bot/status` | Returns `{ invited, active }` for the caller's channel |
 | GET | `/bot/commands` | Lists command configs for the caller's channel |
 | PUT | `/bot/commands` | Create/update a command config |
@@ -146,10 +150,10 @@ Routes that mutate data call `getCallerTwitchId()` to verify the Bearer token ag
 The bot (`apps/bot/src/index.js`) uses Twitch EventSub WebSocket to receive chat messages and the Helix API (`sendMessage` in `twitch.js`) to reply. It is multi-tenant — a single process serves all channels that have invited the bot.
 
 **Key modules:**
-- `eventsub.js` — `EventSubManager` class: manages one persistent WebSocket, subscribes to `channel.chat.message` per channel, handles reconnect with exponential backoff; handles Twitch `session_reconnect` messages by opening the new session URL and re-subscribing before closing the old socket (the close handler is guarded with `if (this.ws === ws)` to prevent stale close events from wiping the new session's state)
+- `eventsub.js` — `EventSubManager` class: manages one persistent WebSocket, subscribes to `channel.chat.message` per channel, handles reconnect with exponential backoff; handles Twitch `session_reconnect` messages by opening the new session URL and re-subscribing before closing the old socket (the close handler is guarded with `if (this.ws === ws)` to prevent stale close events from wiping the new session's state); a watchdog timer re-arms on every received message (including `session_keepalive`) and force-closes the socket if nothing arrives within `keepalive_timeout_seconds` (from the `session_welcome` payload) plus a 5s buffer — guards against a half-open TCP connection that never fires `close`/`error` (e.g. dropped silently by a NAT/proxy)
 - `commands.js` — `handleCommand(message, ctx)` — pure command dispatcher; returns the reply string or `null`
 - `template.js` — `resolveTemplate(template, ctx)` — async template substitution (see Template Variables below)
-- `twitch.js` — Helix API wrappers: `sendMessage`, `deleteMessage`, `timeoutUser` (automod enforcement); `getBroadcasterStream`, `getChannelInfo`, `getFollowAge`, `getSubAge`, `getUserCreatedAt`, `getUserIdByLogin`
+- `twitch.js` — Helix API wrappers: `sendMessage`, `deleteMessage`, `timeoutUser` (automod enforcement, both retry once on 401 via `refreshBotToken()`); `getBroadcasterStream`, `getChannelInfo`, `getFollowAge`, `getSubAge`, `getUserCreatedAt`, `getUserIdByLogin`, `getUserInfo`, `getTopClip` (used by `!so`); `loadBotTokensFromDb`/`refreshBotToken` persist the bot's own tokens to the `bot_tokens` table so they survive restarts
 - `crypto.js` — `decrypt(ciphertext)` only — AES-256-GCM using the shared `ENCRYPTION_KEY`
 - `db.js` — pg Pool with configurable limits via `DB_POOL_MAX` / `DB_IDLE_TIMEOUT_MS` / etc.
 
@@ -164,6 +168,10 @@ The bot (`apps/bot/src/index.js`) uses Twitch EventSub WebSocket to receive chat
 **Automod enforcement** (`enforceAutoMod` in `bot/src/index.js`): runs on every chat message before command dispatch. Checks `automod_settings[0..3]`: link filter (deletes message), caps tax (30s timeout), emote spam (30s timeout), first-time message hold (logs to `channel_events` as `mod_action`). Requires `deleteMessage` and `timeoutUser` Helix API calls with bot's own token — bot user must be a channel moderator.
 
 **Now Playing trigger**: after a successful `!song` reply, the bot fire-and-forgets `UPDATE channels SET nowplaying_triggered_at = NOW()`. The `NowPlayingOverlay` component polls `GET /nowplaying/triggered` every 5 s and force-shows the card when it sees a new timestamp.
+
+**Shoutout trigger**: `!so <streamer>` (handled directly in `bot/src/index.js`, not via the `cfg`/template path used by other commands) looks up the target via `getUserInfo` + `getTopClip`, then fire-and-forgets an `UPDATE channels SET shoutout_*` on the broadcaster's row. The `ShoutoutOverlay` component polls `GET /shoutout/triggered` every 5 s and shows a clip embed + name card when it sees a new timestamp. Twitch clip thumbnail URLs serve static JPEGs, not video — the overlay embeds the clip's `embed_url` in an iframe instead of using the thumbnail.
+
+**Bot token refresh**: on startup, `main()` calls `loadBotTokensFromDb()` to hydrate `BOT_ACCESS_TOKEN`/`BOT_REFRESH_TOKEN` from the `bot_tokens` table (falls back to `.env` values if the table is empty/missing). A 2-hour interval proactively calls `refreshBotToken()`; `deleteMessage`/`timeoutUser` also retry once via `refreshBotToken()` on a 401. Every successful refresh is persisted back to `bot_tokens`.
 
 ## Adding Bot Commands
 
@@ -203,7 +211,7 @@ React Router with these top-level routes:
 - `/login` → `AuthGate.tsx` (redirects to Twitch OAuth if not authenticated)
 - `/dashboard` → `DashboardLayout.tsx` (wraps dashboard sub-pages via nested routes)
 - `/auth/twitch/callback` → `TwitchCallback.tsx`
-- `/overlays/:id` → `OverlaySource.tsx` (transparent OBS browser-source URL; `id=nowplaying` renders `NowPlayingOverlay.tsx` directly and skips Twitch EventSub entirely)
+- `/overlays/:id` → `OverlaySource.tsx` (transparent OBS browser-source URL; `id=nowplaying`/`id=shoutout` render `NowPlayingOverlay.tsx`/`ShoutoutOverlay.tsx` directly and skip Twitch EventSub entirely)
 - `/commands/:login` → `CommandsList.tsx` (public viewer-facing command list)
 
 Dashboard sub-pages (rendered inside `DashboardLayout`): `Bot.tsx`, `BotCommands.tsx`, `BotCounters.tsx`, `BotModerator.tsx`, `BotSettings.tsx`, `BotTimers.tsx`, `Overlays.tsx`, `Settings.tsx`, `StreamManager.tsx`.
@@ -225,6 +233,8 @@ Overlay pages inject a `<style>` tag synchronously in `main.tsx` (before React r
 - `lib/twitchApi.ts` — Helix API helpers used by the frontend (stream info, user lookup)
 
 **Now Playing overlay** (`NowPlayingOverlay.tsx`): self-contained component rendered when `id === 'nowplaying'`. Manages its own 4-state machine (`hidden → entering → visible → exiting`), polls `GET /nowplaying/json` on a configurable interval, and additionally polls `GET /nowplaying/triggered` every 5 s to force-show when `!song` is used in chat. All config comes from URL params (`user`, `channel`, `duration`, `corner`, `from`, `color`, `font`, `fcolor`, `style`, `poll`). CSS keyframes for the animations live in `src/styles/global.css` as `np-card-enter-*`, `np-art-pop`, `np-text-reveal-*`, `np-card-exit-*`.
+
+**Shoutout overlay** (`ShoutoutOverlay.tsx`): self-contained component rendered when `id === 'shoutout'`, same `hidden → entering → visible → exiting` state machine pattern as Now Playing. Polls `GET /shoutout/triggered?channel=` every 5 s and shows a clip iframe (via the stored `embed_url`) + name/avatar card when it sees a new `triggered_at`. Config comes from URL params (`channel`, `font`, `color`, `size`, `duration`). Own keyframes (`so-enter`, `so-exit`, `so-avatar-pop`, `so-label-in`) are injected into `<head>` at runtime rather than living in `global.css`. In `Overlays.tsx`, the dashboard "play preview" button for this overlay calls `POST /bot/shoutout/preview` (rather than the `localStorage` trigger event used by other overlay types) so the iframe preview picks it up through the same polling path used in OBS.
 
 ## Token Encryption
 

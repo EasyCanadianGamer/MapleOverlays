@@ -151,6 +151,15 @@ async function handleCommand(message, {
     const frontendUrl = process.env.FRONTEND_URL;
     return `Command list: ${frontendUrl}/commands/${broadcasterLogin}`;
   }
+  if (commandName === 'so') {
+    const { enabled, response } = cfg('so');
+    if (!enabled) return null;
+    if (!arg) return 'Usage: !so <streamer>';
+    return resolveTemplate(response ?? 'Go check out {1} at twitch.tv/{1} — they were last playing {1.game}!', ctx);
+  }
+
+  
+
 
   // Custom command fallback — any DB command with a response template
   if (text.startsWith('!')) {

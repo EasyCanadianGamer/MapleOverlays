@@ -14,6 +14,7 @@ const BUILTIN_DESCRIPTIONS: Record<string, string> = {
   watchtime:  'Your total watchtime in this channel',
   tip:        'Link to support the streamer',
   commands:   'Link to this command list',
+  so:         'Shoutout comand',
 };
 
 interface CommandRow {

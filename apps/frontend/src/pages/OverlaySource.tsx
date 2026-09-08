@@ -4,6 +4,7 @@ import { playOverlaySound } from '../lib/sounds';
 import { connectTwitchChat } from '../lib/twitchChat';
 import { connectEventSub, extractAlertData } from '../lib/eventSub';
 import NowPlayingOverlay from './NowPlayingOverlay';
+import ShoutoutOverlay from './ShoutoutOverlay';
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -348,6 +349,7 @@ export default function OverlaySource() {
 
   const isChat       = id === 'chat';
   const isNowPlaying = id === 'nowplaying';
+  const isShoutout   = id === 'shoutout';
 
   const trigger = useCallback(() => {
     if (isChat) {
@@ -364,12 +366,12 @@ export default function OverlaySource() {
     });
   }, [id, isChat, config.sound]);
 
-  // Auto-dismiss alert after duration (not for Chat which is persistent)
+  // Auto-dismiss alert after duration (not for Chat or Shoutout — they self-manage)
   useEffect(() => {
-    if (!playing || isChat) return;
+    if (!playing || isChat || isShoutout) return;
     const t = setTimeout(() => setPlaying(false), config.duration * 1000);
     return () => clearTimeout(t);
-  }, [playing, isChat, config.duration]);
+  }, [playing, isChat, isShoutout, config.duration]);
 
   // Stable ref so the storage listener always calls the latest trigger
   const triggerRef = useRef(trigger);
@@ -390,7 +392,7 @@ export default function OverlaySource() {
   // Credentials are in the URL fragment (#token=...&uid=...) so OBS browser sources
   // (separate localStorage) can connect. Fragments are never sent to servers.
   useEffect(() => {
-    if (isChat || isNowPlaying) return;
+    if (isChat || isNowPlaying || isShoutout) return;
     // Read from fragment — not sent to servers, safe for credentials
     const frag  = new URLSearchParams(window.location.hash.slice(1));
     let token   = frag.get('token') ?? '';
@@ -421,7 +423,7 @@ export default function OverlaySource() {
   // Auto-play if ?autoplay=1 (useful for quick testing of alert overlays)
   const hasAutoplay = searchParams.get('autoplay') === '1';
   useEffect(() => {
-    if (!hasAutoplay || isChat || isNowPlaying) return;
+    if (!hasAutoplay || isChat || isNowPlaying || isShoutout) return;
     const t = setTimeout(() => triggerRef.current(), 600);
     return () => clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -429,9 +431,10 @@ export default function OverlaySource() {
 
   return (
     <>
+      {isShoutout   && <ShoutoutOverlay />}
       {isNowPlaying && <NowPlayingOverlay />}
-      {!isNowPlaying && playing && isChat  && <ChatOverlay config={config} />}
-      {!isNowPlaying && playing && !isChat && <AlertOverlay id={id} config={config} eventData={alertData} />}
+      {!isNowPlaying && !isShoutout && playing && isChat  && <ChatOverlay config={config} />}
+      {!isNowPlaying && !isShoutout && playing && !isChat && <AlertOverlay id={id} config={config} eventData={alertData} />}
     </>
   );
 }

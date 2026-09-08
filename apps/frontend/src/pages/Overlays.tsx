@@ -41,6 +41,10 @@ interface OverlayConfig {
   npFrom?:      'left' | 'right' | 'auto';
   npStyle?:     'glass' | 'dark' | 'stripe';
   npPoll?:      number;
+  // Shoutout overlay
+  soFont?:      string;
+  soColor?:     string;
+  soSize?:      number;
 }
 
 // ── Data ──────────────────────────────────────────────────────────────────────
@@ -52,6 +56,7 @@ const OVERLAYS: OverlayItem[] = [
   { id: 'raid',   name: 'Raid welcome',     desc: 'Incoming raider parade',               color: '#22C58B', icon: 'users' },
   { id: 'chat',       name: 'Chat box',    desc: 'Animated chat overlay, any corner',    color: '#B7AAAE', icon: 'bot'   },
   { id: 'nowplaying', name: 'Now Playing', desc: 'Animated music card, polls Last.fm',   color: '#AC0747', icon: 'music' },
+   { id: 'shoutout', name: 'Shoutout', desc: 'Plays a top clip when !so fires in chat', color: '#7C3AED', icon: 'users' },
 ];
 
 const DEFAULT_CONFIGS: Record<string, OverlayConfig> = {
@@ -65,6 +70,8 @@ const DEFAULT_CONFIGS: Record<string, OverlayConfig> = {
     npUser: '', npFont: 'Geist', npFontColor: '#ffffff',
     npCorner: 'bottom-left', npFrom: 'auto', npStyle: 'glass', npPoll: 15,
   },
+  shoutout: { accentColor: '#7C3AED', duration: 12, sound: false, message: '', soFont: 'Geist', soColor: '#ffffff', soSize: 32 },
+
 };
 
 // Overlays that have a synthesised default sound
@@ -124,6 +131,16 @@ function buildOverlayUrl(id: string, config: OverlayConfig): string {
     } catch { /* ignore */ }
   }
 
+  if (id === 'shoutout') {
+    try {
+      const stored = JSON.parse(localStorage.getItem('twitch_user') ?? '{}') as { login?: string };
+      if (stored.login) params.set('channel', stored.login);
+    } catch { /* ignore */ }
+    if (config.soFont  && config.soFont  !== 'Geist')    params.set('font',  config.soFont);
+    if (config.soColor && config.soColor !== '#ffffff')  params.set('color', config.soColor);
+    if (config.soSize  != null && config.soSize !== 32)  params.set('size',  String(config.soSize));
+  }
+
   if (id === 'chat') {
     try {
       const stored = JSON.parse(localStorage.getItem('twitch_user') ?? '{}') as { login?: string };
@@ -146,7 +163,7 @@ function buildOverlayUrl(id: string, config: OverlayConfig): string {
   // localStorage) can connect to EventSub. Using a fragment (#) keeps credentials
   // out of server logs and referrer headers — fragments are never sent to servers.
   let fragment = '';
-  if (!['chat', 'brb', 'nowplaying'].includes(id)) {
+  if (!['chat', 'brb', 'nowplaying', 'shoutout'].includes(id)) {
     try {
       const token = localStorage.getItem('twitch_access_token');
       const user  = JSON.parse(localStorage.getItem('twitch_user') ?? '{}') as { id?: string };
@@ -416,7 +433,56 @@ function NowPlayingPreview({ config }: { config: OverlayConfig }) {
 }
 
 
-function OverlayPreview({ overlay, config, playing }: { overlay: OverlayItem; config: OverlayConfig; playing: boolean }) {
+function ShoutoutPreview({ config, previewKey }: { config: OverlayConfig; previewKey: number }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(0);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const obs = new ResizeObserver(([entry]) => {
+      setScale(entry.contentRect.width / 1920);
+    });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
+  const params = new URLSearchParams();
+  try {
+    const stored = JSON.parse(localStorage.getItem('twitch_user') ?? '{}') as { login?: string };
+    if (stored.login) params.set('channel', stored.login);
+  } catch { /* ignore */ }
+  if (config.soFont  && config.soFont  !== 'Geist')   params.set('font',  config.soFont);
+  if (config.soColor && config.soColor !== '#ffffff') params.set('color', config.soColor);
+  if (config.soSize  != null && config.soSize !== 32) params.set('size',  String(config.soSize));
+  params.set('duration', String(config.duration));
+
+  return (
+    <div ref={containerRef} style={{ position: 'absolute', inset: 0 }}>
+      {!params.get('channel') && (
+        <div style={{ position: 'absolute', bottom: 8, left: 8 }}>
+          <div style={{ fontSize: 7, color: 'rgba(255,255,255,.28)', fontFamily: 'var(--font-mono)', letterSpacing: '.1em', textTransform: 'uppercase' }}>
+            log in to preview
+          </div>
+        </div>
+      )}
+      {params.get('channel') && scale > 0 && (
+        <iframe
+          key={previewKey}
+          src={`/overlays/shoutout?${params.toString()}`}
+          style={{
+            width: 1920, height: 1080, border: 'none',
+            transform: `scale(${scale})`,
+            transformOrigin: 'top left',
+            pointerEvents: 'none',
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function OverlayPreview({ overlay, config, playing, previewKey }: { overlay: OverlayItem; config: OverlayConfig; playing: boolean; previewKey?: number }) {
   return (
     <div style={{
       position: 'relative',
@@ -436,7 +502,8 @@ function OverlayPreview({ overlay, config, playing }: { overlay: OverlayItem; co
 
       {overlay.id === 'chat'       && <ChatPreview config={config} playing={playing} />}
       {overlay.id === 'nowplaying' && <NowPlayingPreview config={config} />}
-      {overlay.id !== 'chat' && overlay.id !== 'nowplaying' && <AlertPreview overlay={overlay} config={config} playing={playing} />}
+      {overlay.id === 'shoutout'   && <ShoutoutPreview config={config} previewKey={previewKey ?? 0} />}
+      {overlay.id !== 'chat' && overlay.id !== 'nowplaying' && overlay.id !== 'shoutout' && <AlertPreview overlay={overlay} config={config} playing={playing} />}
     </div>
   );
 }
@@ -471,6 +538,7 @@ function OverlayEditor({
   onBack: () => void;
 }) {
   const [playing, setPlaying] = useState(false);
+  const [soPreviewKey, setSoPreviewKey] = useState(0);
   const playTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -480,9 +548,22 @@ function OverlayEditor({
   }, []);
 
   const url = buildOverlayUrl(overlay.id, config);
-  const isAlert = !['chat', 'nowplaying'].includes(overlay.id);
+  const isAlert = !['chat', 'nowplaying', 'shoutout'].includes(overlay.id);
 
-  const playPreview = () => {
+  const playPreview = async () => {
+    if (overlay.id === 'shoutout') {
+      const token = localStorage.getItem('twitch_access_token');
+      if (token) {
+        try {
+          await fetch(`${import.meta.env.VITE_API_URL ?? ''}/bot/shoutout/preview`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}` },
+          });
+        } catch { /* silent */ }
+      }
+      setSoPreviewKey(k => k + 1);
+      return;
+    }
     setPlaying(true);
     if (config.sound) playOverlaySound(overlay.id);
     localStorage.setItem(`maple_trigger_${overlay.id}`, Date.now().toString());
@@ -533,7 +614,7 @@ function OverlayEditor({
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 20, alignItems: 'start' }}>
         {/* Preview */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <OverlayPreview overlay={overlay} config={config} playing={playing} />
+          <OverlayPreview overlay={overlay} config={config} playing={playing} previewKey={soPreviewKey} />
           <Button
             variant="secondary"
             icon="play"
@@ -569,13 +650,13 @@ function OverlayEditor({
               <span style={labelTextStyle}>Duration — {config.duration}s</span>
               <input
                 type="range"
-                min={2} max={overlay.id === 'nowplaying' ? 30 : 15} step={1}
+                min={2} max={overlay.id === 'nowplaying' ? 30 : overlay.id === 'shoutout' ? 20 : 15} step={1}
                 value={config.duration}
                 onChange={e => onConfigChange({ ...config, duration: Number(e.target.value) })}
                 style={{ accentColor: config.accentColor, cursor: 'pointer' }}
               />
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--ink-4)', fontFamily: 'var(--font-mono)' }}>
-                <span>2s</span><span>{overlay.id === 'nowplaying' ? '30s' : '15s'}</span>
+                <span>2s</span><span>{overlay.id === 'nowplaying' ? '30s' : overlay.id === 'shoutout' ? '20s' : '15s'}</span>
               </div>
             </div>
           )}
@@ -965,6 +1046,62 @@ function OverlayEditor({
                 <div style={{ fontSize: 11, color: 'var(--ink-4)', fontFamily: 'var(--font-mono)' }}>
                   How often to check Last.fm for a track change
                 </div>
+              </div>
+            </>
+          )}
+
+          {/* Shoutout settings */}
+          {overlay.id === 'shoutout' && (
+            <>
+              {/* Font */}
+              <div style={labelStyle}>
+                <span style={labelTextStyle}>Font</span>
+                <select
+                  value={config.soFont ?? 'Geist'}
+                  onChange={e => {
+                    const f = CHAT_FONTS.find(x => x.value === e.target.value);
+                    if (f?.google) loadGoogleFont(f.value);
+                    onConfigChange({ ...config, soFont: e.target.value });
+                  }}
+                  style={{ ...inputStyle, fontFamily: `${config.soFont ?? 'Geist'}, sans-serif`, cursor: 'pointer' }}
+                >
+                  {CHAT_FONTS.map(f => (
+                    <option key={f.value} value={f.value}>{f.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Text colour */}
+              <div style={labelStyle}>
+                <span style={labelTextStyle}>Text colour</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <input
+                    type="color"
+                    value={config.soColor ?? '#ffffff'}
+                    onChange={e => onConfigChange({ ...config, soColor: e.target.value })}
+                    style={{ width: 40, height: 40, borderRadius: 10, border: '1px solid var(--border-2)', padding: 4, background: 'var(--bg-1)', cursor: 'pointer' }}
+                  />
+                  <code style={{ fontSize: 13, color: 'var(--ink-1)' }}>{config.soColor ?? '#ffffff'}</code>
+                </div>
+              </div>
+
+              {/* Font size */}
+              <div style={labelStyle}>
+                <span style={labelTextStyle}>Name size — {config.soSize ?? 32}px</span>
+                <input
+                  type="range" min={18} max={64} step={2}
+                  value={config.soSize ?? 32}
+                  onChange={e => onConfigChange({ ...config, soSize: Number(e.target.value) })}
+                  style={{ accentColor: config.accentColor, cursor: 'pointer' }}
+                />
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--ink-4)', fontFamily: 'var(--font-mono)' }}>
+                  <span>18px</span><span>64px</span>
+                </div>
+              </div>
+
+              <div style={{ fontSize: 11, color: 'var(--ink-4)', fontFamily: 'var(--font-mono)', lineHeight: 1.6 }}>
+                Triggered by <code style={{ color: 'var(--ink-2)' }}>!so &lt;streamer&gt;</code> in chat.<br />
+                Plays their top clip for the configured duration.
               </div>
             </>
           )}

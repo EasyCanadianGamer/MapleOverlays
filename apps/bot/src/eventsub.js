@@ -5,6 +5,13 @@ if (!process.env.BOT_USER_ID)       throw new Error('Missing required env var: B
 const WebSocket = require('ws');
 const { refreshBotToken } = require('./twitch');
 
+// Twitch expects clients to track keepalive frames themselves: a socket can
+// go half-open (dropped by a NAT/proxy with no FIN/RST) without ever firing
+// 'close' or 'error'. This buffer pads Twitch's stated keepalive interval to
+// tolerate normal event-loop jitter before declaring the connection dead.
+const WATCHDOG_BUFFER_MS = 5000;
+const DEFAULT_KEEPALIVE_SECONDS = 10;
+
 class EventSubManager {
   constructor(onMessage) {
     this.onMessage = onMessage;
@@ -13,6 +20,17 @@ class EventSubManager {
     this.subscribedChannels = new Set();
     this._onReconnect = null;
     this._onStreamState = null;
+    this._watchdogTimer = null;
+    this._keepaliveMs = DEFAULT_KEEPALIVE_SECONDS * 1000;
+  }
+
+  _armWatchdog(ws) {
+    if (this._watchdogTimer) clearTimeout(this._watchdogTimer);
+    this._watchdogTimer = setTimeout(() => {
+      if (this.ws !== ws) return;
+      console.error(`EventSub: no message received within ${this._keepaliveMs + WATCHDOG_BUFFER_MS}ms — assuming dead connection, closing`);
+      ws.close();
+    }, this._keepaliveMs + WATCHDOG_BUFFER_MS);
   }
 
   onReconnect(fn) {
@@ -32,7 +50,10 @@ class EventSubManager {
         const msg = JSON.parse(data);
         if (msg.metadata.message_type === 'session_welcome') {
           this.sessionId = msg.payload.session.id;
-          ws.on('message', (d) => this._handleMessage(d));
+          const keepaliveSeconds = msg.payload.session.keepalive_timeout_seconds ?? DEFAULT_KEEPALIVE_SECONDS;
+          this._keepaliveMs = keepaliveSeconds * 1000;
+          this._armWatchdog(ws);
+          ws.on('message', (d) => { this._armWatchdog(ws); this._handleMessage(d); });
           ws.on('error', (err) => console.error('EventSub WebSocket error:', err.message));
           resolve();
         } else {
@@ -49,6 +70,7 @@ class EventSubManager {
   }
 
   async _handleClose() {
+    if (this._watchdogTimer) clearTimeout(this._watchdogTimer);
     this.sessionId = null;
     this.subscribedChannels.clear();
     const MAX_ATTEMPTS = 10;
