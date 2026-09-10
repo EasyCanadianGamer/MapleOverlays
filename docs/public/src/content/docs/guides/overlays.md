@@ -78,3 +78,38 @@ The **Slide direction** option defaults to `auto`, which automatically chooses l
 ### Album Art
 
 When Last.fm provides album art for the current track, it is displayed in the card. If no art is available, a gradient placeholder using your accent color is shown instead.
+
+---
+
+## Custom Overlays
+
+Beyond the built-in overlays above, the **Overlays** section of the dashboard also has a drag-and-drop canvas editor for building your own overlay layout from a palette of widgets. Each custom overlay gets its own OBS Browser Source URL (`/overlays/custom/<id>`), independent of the built-in overlay URLs.
+
+### Widget Types
+
+| Widget | Description |
+|--------|-------------|
+| Text | Static or templated text with font, size, colour, and alignment controls |
+| Image | A single image from a URL, with `contain`/`cover` fit |
+| Custom Code | Your own HTML, CSS, and JavaScript, edited in-browser and rendered live |
+| Now Playing | The same Now Playing card described above, sized and positioned independently |
+| Shoutout | The same Shoutout card triggered by `!so`, sized and positioned independently |
+| Live Chat | A scrolling feed of recent chat messages from a Twitch channel |
+
+Every widget is positioned and resized by dragging it directly on the canvas; geometry is stored as a percentage of the canvas so the layout looks the same at any OBS source resolution.
+
+### Custom Code Widget
+
+The Custom Code widget gives you three editable panes — HTML, CSS, and JavaScript — and renders the result live in the canvas as you type.
+
+<Aside type="caution">
+Custom code runs in a sandboxed frame with no access to your dashboard, your Twitch login, or any other widget on the canvas — it cannot read cookies, local storage, or the rest of the page. It can still make its own network requests (e.g. to a public API), and it is visible to anyone who has the overlay's OBS URL, so avoid putting anything sensitive in it.
+</Aside>
+
+### Now Playing / Shoutout Widgets
+
+These reuse the exact same Now Playing and Shoutout behavior described earlier in this guide (same triggers, same live polling) but as an independently sized and positioned widget on your custom canvas, so you can combine them with other widgets in one layout instead of using a separate OBS Browser Source for each.
+
+### Live Chat Widget
+
+Shows recent messages from a Twitch channel's chat, styled with your choice of font, size, and colours. Connects anonymously and read-only — no login is required for the widget to work.
