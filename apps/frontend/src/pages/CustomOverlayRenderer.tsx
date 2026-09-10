@@ -1,6 +1,11 @@
 import { useState, useEffect, Component, type ReactNode } from 'react';
 import { useParams } from 'react-router-dom';
-import { renderTextWidget, renderImageWidget, type Widget, type TextWidgetConfig, type ImageWidgetConfig } from '../lib/customOverlayWidgets';
+import {
+  renderTextWidget, renderImageWidget, renderCodeWidget, renderNowPlayingWidget, renderShoutoutWidget,
+  type Widget, type TextWidgetConfig, type ImageWidgetConfig, type CodeWidgetConfig,
+  type NowPlayingWidgetConfig, type ShoutoutWidgetConfig, type ChatWidgetConfig,
+} from '../lib/customOverlayWidgets';
+import { renderChatWidget } from '../lib/ChatWidgetView';
 
 interface CustomOverlayData {
   id: number;
@@ -72,6 +77,10 @@ function renderWidgetSafely(widget: Widget) {
   try {
     if (widget.type === 'text') return renderTextWidget(widget.config as TextWidgetConfig);
     if (widget.type === 'image') return renderImageWidget(widget.config as ImageWidgetConfig);
+    if (widget.type === 'code') return renderCodeWidget(widget.config as CodeWidgetConfig);
+    if (widget.type === 'nowplaying') return renderNowPlayingWidget(widget.config as NowPlayingWidgetConfig);
+    if (widget.type === 'shoutout') return renderShoutoutWidget(widget.config as ShoutoutWidgetConfig);
+    if (widget.type === 'chat') return renderChatWidget(widget.config as ChatWidgetConfig);
     return null;
   } catch {
     return null;
