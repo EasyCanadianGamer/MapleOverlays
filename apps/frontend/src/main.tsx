@@ -6,6 +6,7 @@ import Landing from './pages/Landing';
 import DashboardLayout from './components/layout/DashboardLayout';
 import TwitchCallback from './pages/TwitchCallback';
 import OverlaySource from './pages/OverlaySource';
+import CustomOverlayRenderer from './pages/CustomOverlayRenderer';
 import CommandsList from './pages/CommandsList';
 import Login from './pages/AuthGate';
 
@@ -30,6 +31,7 @@ createRoot(root).render(
         <Route path="/login/" element={<Login />} />
         <Route path="/dashboard/*" element={<DashboardLayout />} />
         <Route path="/auth/twitch/callback" element={<TwitchCallback />} />
+        <Route path="/overlays/custom/:id" element={<CustomOverlayRenderer />} />
         <Route path="/overlays/:id" element={<OverlaySource />} />
         <Route path="/commands/:login" element={<CommandsList />} />
       </Routes>
