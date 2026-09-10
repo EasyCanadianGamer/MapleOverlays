@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db');
 const { encrypt } = require('../crypto');
+const { getCallerTwitchUser, getCallerTwitchId } = require('../lib/twitchAuth');
 
 const BUILTIN_COMMANDS = new Set(['ping', 'song', 'uptime', 'downtime', 'followage', 'accountage', 'watchtime', 'tip', 'commands', 'so']);
 const CMD_NAME_RE = /^[a-z0-9_]{1,20}$/;
@@ -13,39 +14,6 @@ function sanitizeResponse(text) {
   // Strip null bytes and non-printable ASCII control chars (keep tab/newline)
   const clean = text.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '').slice(0, MAX_RESPONSE_LEN).trim();
   return clean || null;
-}
-
-async function getCallerTwitchUser(req) {
-  const auth = req.headers.authorization;
-  if (!auth?.startsWith('Bearer ')) return null;
-  const token = auth.slice(7);
-  try {
-    const res = await fetch('https://api.twitch.tv/helix/users', {
-      headers: { Authorization: `Bearer ${token}`, 'Client-Id': process.env.TWITCH_CLIENT_ID },
-    });
-    if (!res.ok) return null;
-    const { data } = await res.json();
-    return data?.[0] ?? null;
-  } catch { return null; }
-}
-
-async function getCallerTwitchId(req) {
-  const auth = req.headers.authorization;
-  if (!auth?.startsWith('Bearer ')) return null;
-  const token = auth.slice(7);
-  try {
-    const res = await fetch('https://api.twitch.tv/helix/users', {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Client-Id': process.env.TWITCH_CLIENT_ID,
-      },
-    });
-    if (!res.ok) return null;
-    const { data } = await res.json();
-    return data?.[0]?.id ?? null;
-  } catch {
-    return null;
-  }
 }
 
 router.get('/auth/bot/user-token', (req, res) => {

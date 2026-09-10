@@ -5,6 +5,8 @@ import Button from '../components/ui/Button';
 import Toggle from '../components/ui/Toggle';
 import Icon from '../components/ui/Icon';
 import { playOverlaySound } from '../lib/sounds';
+import { getToken } from '../lib/twitchAuth';
+import CustomOverlayEditor from './CustomOverlayEditor';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -88,7 +90,7 @@ function loadConfigs(): Record<string, OverlayConfig> {
 }
 
 // Curated free fonts from Google Fonts (loaded on demand)
-const CHAT_FONTS = [
+export const CHAT_FONTS = [
   { label: 'Geist (default)',  value: 'Geist',           google: false },
   { label: 'Roboto',           value: 'Roboto',           google: true  },
   { label: 'Nunito',           value: 'Nunito',           google: true  },
@@ -99,7 +101,7 @@ const CHAT_FONTS = [
   { label: 'Press Start 2P',   value: 'Press Start 2P',  google: true  },
 ];
 
-function loadGoogleFont(family: string): void {
+export function loadGoogleFont(family: string): void {
   const id = `gfont-${family.replace(/\s+/g, '-').toLowerCase()}`;
   if (document.getElementById(id)) return;
   const link = document.createElement('link');
@@ -182,7 +184,7 @@ function buildOverlayUrl(id: string, config: OverlayConfig): string {
 
 // ── Shared chip ───────────────────────────────────────────────────────────────
 
-function CopyUrlChip({ url }: { url: string }) {
+export function CopyUrlChip({ url }: { url: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <div style={{
@@ -510,7 +512,7 @@ function OverlayPreview({ overlay, config, playing, previewKey }: { overlay: Ove
 
 // ── Editor ────────────────────────────────────────────────────────────────────
 
-const inputStyle: React.CSSProperties = {
+export const inputStyle: React.CSSProperties = {
   height: 40, padding: '0 14px', borderRadius: 10,
   background: 'var(--bg-1)', border: '1px solid var(--border-2)',
   color: 'var(--ink-0)', outline: 'none',
@@ -518,11 +520,11 @@ const inputStyle: React.CSSProperties = {
   width: '100%', boxSizing: 'border-box',
 };
 
-const labelStyle: React.CSSProperties = {
+export const labelStyle: React.CSSProperties = {
   display: 'flex', flexDirection: 'column', gap: 6,
 };
 
-const labelTextStyle: React.CSSProperties = {
+export const labelTextStyle: React.CSSProperties = {
   fontSize: 12, color: 'var(--ink-2)', fontWeight: 500,
 };
 
@@ -1134,7 +1136,54 @@ function OverlayEditor({
 export default function Overlays() {
   const [configs, setConfigs] = useState<Record<string, OverlayConfig>>(loadConfigs);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [showComingSoon, setShowComingSoon] = useState(false);
+  const [customOverlays, setCustomOverlays] = useState<{ id: number; name: string; updated_at: string }[]>([]);
+  const [editingCustomId, setEditingCustomId] = useState<number | null>(null);
+  const [customError, setCustomError] = useState<string | null>(null);
+
+  const refreshCustomOverlays = () => {
+    const token = getToken();
+    if (!token) return;
+    fetch(`${import.meta.env.VITE_API_URL ?? ''}/custom-overlays`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => (r.ok ? r.json() : []))
+      .then(setCustomOverlays)
+      .catch(() => {});
+  };
+
+  useEffect(refreshCustomOverlays, []);
+
+  const createCustomOverlay = async () => {
+    const token = getToken();
+    if (!token) return;
+    setCustomError(null);
+    const res = await fetch(`${import.meta.env.VITE_API_URL ?? ''}/custom-overlays`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({})) as { error?: string };
+      setCustomError(body.error ?? 'Failed to create overlay');
+      return;
+    }
+    const row = await res.json() as { id: number; name: string; updated_at: string };
+    setCustomOverlays(prev => [...prev, row]);
+    setEditingCustomId(row.id);
+  };
+
+  const deleteCustomOverlay = async (id: number) => {
+    if (!confirm('Delete this overlay? This cannot be undone.')) return;
+    const token = getToken();
+    if (!token) return;
+    setCustomError(null);
+    const res = await fetch(`${import.meta.env.VITE_API_URL ?? ''}/custom-overlays/${id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.ok) {
+      setCustomOverlays(prev => prev.filter(o => o.id !== id));
+    } else {
+      setCustomError('Failed to delete overlay');
+    }
+  };
 
   const editingOverlay = OVERLAYS.find(o => o.id === editingId) ?? null;
 
@@ -1143,6 +1192,15 @@ export default function Overlays() {
     setConfigs(next);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
   };
+
+  if (editingCustomId !== null) {
+    return (
+      <CustomOverlayEditor
+        overlayId={editingCustomId}
+        onBack={() => { setEditingCustomId(null); refreshCustomOverlays(); }}
+      />
+    );
+  }
 
   if (editingOverlay) {
     return (
@@ -1157,21 +1215,107 @@ export default function Overlays() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div>
+        <Eyebrow>Overlays</Eyebrow>
+        <h2 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 32, letterSpacing: '-0.02em', margin: '8px 0 4px' }}>
+          Browser sources.
+        </h2>
+        <div style={{ color: 'var(--ink-2)', fontSize: 14 }}>
+          Drop these URLs into OBS or Streamlabs. They load in 80ms on a cold cache.
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div>
-          <Eyebrow>Overlays</Eyebrow>
-          <h2 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 32, letterSpacing: '-0.02em', margin: '8px 0 4px' }}>
-            Browser sources.
-          </h2>
+          <Eyebrow>Your overlays</Eyebrow>
+          <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 22, letterSpacing: '-0.02em', margin: '8px 0 4px' }}>
+            Custom overlays.
+          </h3>
           <div style={{ color: 'var(--ink-2)', fontSize: 14 }}>
-            Drop these URLs into OBS or Streamlabs. They load in 80ms on a cold cache.
+            Build your own layout with widgets you place and size yourself.
           </div>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
-          <Button variant="secondary" icon="plus" onClick={() => setShowComingSoon(true)}>
-            New overlay
-          </Button>
-        </div>
+
+        {customError && (
+          <div style={{ fontSize: 13, color: '#F4526A', fontFamily: 'var(--font-mono)' }}>{customError}</div>
+        )}
+
+        {customOverlays.length === 0 ? (
+          <Card style={{ padding: '32px 28px', display: 'flex', alignItems: 'center', gap: 20 }}>
+            <div style={{
+              width: 48, height: 48, borderRadius: 14, flexShrink: 0,
+              background: 'linear-gradient(135deg, var(--maple-600), var(--maple-400))',
+              display: 'grid', placeItems: 'center',
+            }}>
+              <Icon name="zap" size={22} style={{ color: '#fff' }} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 16, color: 'var(--ink-0)' }}>
+                No custom overlays yet
+              </div>
+              <div style={{ fontSize: 13, color: 'var(--ink-2)', marginTop: 2 }}>
+                Build a fully custom overlay with your own widgets — like StreamElements, but yours.
+              </div>
+            </div>
+            <Button variant="primary" icon="plus" onClick={() => void createCustomOverlay()}>
+              New overlay
+            </Button>
+          </Card>
+        ) : (
+          <>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
+              {customOverlays.map(o => (
+                <Card key={o.id} padded={false} style={{ overflow: 'hidden' }}>
+                  <div style={{ aspectRatio: '16/9', background: 'rgba(124,58,237,.12)', borderBottom: '1px solid var(--border-1)', display: 'grid', placeItems: 'center' }}>
+                    <Icon name="zap" size={24} style={{ color: '#7C3AED' }} />
+                  </div>
+                  <div style={{ padding: 16 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                      <div style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 16, color: 'var(--ink-0)', flex: 1 }}>
+                        {o.name}
+                      </div>
+                      <button
+                        onClick={() => setEditingCustomId(o.id)}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 5,
+                          height: 28, padding: '0 10px', borderRadius: 8,
+                          border: '1px solid var(--border-2)', background: 'var(--bg-3)',
+                          color: 'var(--ink-2)', cursor: 'pointer',
+                          fontSize: 12, fontFamily: 'var(--font-body)', fontWeight: 600,
+                        }}
+                      >
+                        <Icon name="settings" size={12} />
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => void deleteCustomOverlay(o.id)}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center',
+                          height: 28, width: 28, borderRadius: 8, justifyContent: 'center',
+                          border: '1px solid var(--border-2)', background: 'var(--bg-3)',
+                          color: '#F4526A', cursor: 'pointer',
+                        }}
+                      >
+                        <Icon name="trash" size={12} />
+                      </button>
+                    </div>
+                    <CopyUrlChip url={`${window.location.origin}/overlays/custom/${o.id}`} />
+                  </div>
+                </Card>
+              ))}
+            </div>
+            <Button variant="secondary" icon="plus" onClick={() => void createCustomOverlay()} style={{ alignSelf: 'flex-start' }}>
+              New overlay
+            </Button>
+          </>
+        )}
+      </div>
+
+      <div>
+        <Eyebrow>Built-in</Eyebrow>
+        <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 22, letterSpacing: '-0.02em', margin: '8px 0 4px' }}>
+          Built-in overlays.
+        </h3>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
@@ -1227,67 +1371,6 @@ export default function Overlays() {
           );
         })}
       </div>
-
-      {showComingSoon && (
-        <div
-          onClick={() => setShowComingSoon(false)}
-          style={{
-            position: 'fixed', inset: 0, zIndex: 1000,
-            background: 'rgba(0,0,0,.6)',
-            backdropFilter: 'blur(6px)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}
-        >
-          <div
-            onClick={e => e.stopPropagation()}
-            style={{
-              background: 'var(--bg-2)',
-              border: '1px solid var(--border-2)',
-              borderRadius: 20,
-              padding: '40px 44px',
-              maxWidth: 420,
-              width: '90%',
-              boxShadow: '0 32px 80px -20px rgba(0,0,0,.7), 0 0 0 1px rgba(255,255,255,.05) inset',
-              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, textAlign: 'center',
-            }}
-          >
-            <div style={{
-              width: 56, height: 56, borderRadius: 16,
-              background: 'linear-gradient(135deg, var(--maple-600), var(--maple-400))',
-              display: 'grid', placeItems: 'center',
-              boxShadow: '0 8px 24px -8px var(--maple-500)',
-            }}>
-              <Icon name="sparkles" size={26} style={{ color: '#fff' }} />
-            </div>
-            <div>
-              <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 22, letterSpacing: '-0.02em', color: 'var(--ink-0)' }}>
-                Custom overlays in V2
-              </div>
-              <div style={{ marginTop: 8, fontSize: 14, color: 'var(--ink-2)', lineHeight: 1.6 }}>
-                Build fully custom overlays with your own layouts, widgets, and animations — like StreamElements or pixelchat, but yours.
-              </div>
-            </div>
-            <div style={{
-              background: 'var(--bg-3)', border: '1px solid var(--border-1)',
-              borderRadius: 10, padding: '10px 16px',
-              fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--ink-3)',
-            }}>
-              Coming soon · stay tuned
-            </div>
-            <button
-              onClick={() => setShowComingSoon(false)}
-              style={{
-                marginTop: 4, padding: '10px 28px', borderRadius: 10,
-                background: 'var(--bg-3)', border: '1px solid var(--border-1)',
-                color: 'var(--ink-1)', fontFamily: 'var(--font-body)', fontSize: 14,
-                fontWeight: 600, cursor: 'pointer',
-              }}
-            >
-              Got it
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

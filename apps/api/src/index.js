@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const { getNowPlaying, getNowPlayingData } = require('@maple/lastfm');
 const botRouter = require('./routes/bot');
+const overlaysRouter = require('./routes/overlays');
 const { migrate } = require('./migrate');
 
 const app = express();
@@ -48,6 +49,7 @@ app.get('/bot/token-helper', (_req, res) => {
 });
 
 app.use(botRouter);
+app.use(overlaysRouter);
 
 migrate()
   .then(() => app.listen(PORT, () => console.log(`Listening on port ${PORT}`)))
