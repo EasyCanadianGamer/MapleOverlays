@@ -12,6 +12,14 @@ const { refreshBotToken } = require('./twitch');
 const WATCHDOG_BUFFER_MS = 5000;
 const DEFAULT_KEEPALIVE_SECONDS = 10;
 
+function deriveChatRoles(event) {
+  const isBroadcaster = event.chatter_user_id === event.broadcaster_user_id;
+  const isModerator   = isBroadcaster || (event.badges?.some(b => b.set_id === 'moderator') ?? false);
+  const isVip         = event.badges?.some(b => b.set_id === 'vip') ?? false;
+  const isSubscriber  = event.badges?.some(b => b.set_id === 'subscriber' || b.set_id === 'founder') ?? false;
+  return { isSubscriber, isVip, isModerator, isBroadcaster };
+}
+
 class EventSubManager {
   constructor(onMessage) {
     this.onMessage = onMessage;
@@ -136,10 +144,12 @@ class EventSubManager {
       const chatterLogin     = event.chatter_user_login;
       const text             = event.message?.text;
       if (!broadcasterId || !text) return;
-      const isSubscriber = event.badges?.some(b => b.set_id === 'subscriber' || b.set_id === 'founder') ?? false;
+      const { isSubscriber, isVip, isModerator, isBroadcaster } = deriveChatRoles(event);
       const emoteCount   = event.message?.fragments?.filter(f => f.type === 'emote').length ?? 0;
       const messageId    = event.message_id ?? '';
-      this.onMessage(broadcasterId, broadcasterLogin, chatterId, chatterLogin, text, { isSubscriber, emoteCount, messageId });
+      this.onMessage(broadcasterId, broadcasterLogin, chatterId, chatterLogin, text, {
+        isSubscriber, isVip, isModerator, isBroadcaster, emoteCount, messageId,
+      });
     } else if (subscription_type === 'stream.offline') {
       if (event.broadcaster_user_id) this._onStreamState?.(event.broadcaster_user_id, false);
     } else if (subscription_type === 'stream.online') {
@@ -210,3 +220,4 @@ class EventSubManager {
 }
 
 module.exports = EventSubManager;
+module.exports.deriveChatRoles = deriveChatRoles;

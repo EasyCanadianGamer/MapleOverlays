@@ -42,6 +42,18 @@ function formatSeconds(totalSeconds) {
   return `${m}m`;
 }
 
+const ROLE_RANK = { everyone: 0, subscriber: 1, vip: 2, moderator: 3, broadcaster: 4 };
+
+function hasRole(ctx, minRole) {
+  const rank = ROLE_RANK[minRole] ?? 0;
+  if (rank <= 0) return true;
+  if (ctx.isBroadcaster) return true;
+  if (rank <= ROLE_RANK.moderator  && ctx.isModerator)  return true;
+  if (rank <= ROLE_RANK.vip        && ctx.isVip)        return true;
+  if (rank <= ROLE_RANK.subscriber && ctx.isSubscriber) return true;
+  return false;
+}
+
 async function handleCommand(message, {
   broadcasterId,
   broadcasterLogin,
@@ -53,6 +65,10 @@ async function handleCommand(message, {
   offlineSince = null,
   tipUrl = null,
   getWatchtime = null,
+  isSubscriber = false,
+  isVip = false,
+  isModerator = false,
+  isBroadcaster = false,
 } = {}) {
   const text = message.trim();
 
@@ -60,10 +76,18 @@ async function handleCommand(message, {
   const arg   = (parts[1] ?? '').replace(/^@/, '') || null;
 
   const commandName = parts[0]?.toLowerCase() ?? null;
-  const ctx = { broadcasterId, broadcasterLogin, chatterId, chatterLogin, arg, accessToken, command: commandName };
+  const ctx = {
+    broadcasterId, broadcasterLogin, chatterId, chatterLogin, arg, accessToken, command: commandName,
+    isSubscriber, isVip, isModerator, isBroadcaster,
+  };
 
   function cfg(key) {
-    return commandConfigs[key] ?? { enabled: true, response: null };
+    return commandConfigs[key] ?? { enabled: true, response: null, min_role: 'everyone' };
+  }
+
+  if (commandName) {
+    const activeCfg = cfg(commandName);
+    if (activeCfg.min_role && !hasRole(ctx, activeCfg.min_role)) return null;
   }
 
   if (text === '!ping') {
@@ -173,4 +197,4 @@ async function handleCommand(message, {
   return null;
 }
 
-module.exports = { handleCommand };
+module.exports = { handleCommand, hasRole };

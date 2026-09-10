@@ -8,7 +8,7 @@ dist
 # Claude Code / plugin tooling
 .agents/
 .claude/
-.superpowers/
 .remember/
 skills-lock.json
-
+docs/superpowers/
+docs/internal

@@ -6,6 +6,7 @@ const { encrypt } = require('../crypto');
 const BUILTIN_COMMANDS = new Set(['ping', 'song', 'uptime', 'downtime', 'followage', 'accountage', 'watchtime', 'tip', 'commands', 'so']);
 const CMD_NAME_RE = /^[a-z0-9_]{1,20}$/;
 const MAX_RESPONSE_LEN = 500;
+const MIN_ROLES = new Set(['everyone', 'subscriber', 'vip', 'moderator', 'broadcaster']);
 
 function sanitizeResponse(text) {
   if (typeof text !== 'string') return null;
@@ -162,7 +163,7 @@ router.get('/bot/commands', async (req, res) => {
 
   try {
     const { rows } = await pool.query(
-      'SELECT command, enabled, response, count FROM command_configs WHERE twitch_user_id = $1',
+      'SELECT command, enabled, response, count, min_role FROM command_configs WHERE twitch_user_id = $1',
       [callerId]
     );
     res.json(rows.map(r => ({ ...r, builtin: BUILTIN_COMMANDS.has(r.command) })));
@@ -176,21 +177,26 @@ router.put('/bot/commands', async (req, res) => {
   const callerId = await getCallerTwitchId(req);
   if (!callerId) return res.status(401).json({ error: 'Unauthorized' });
 
-  const { command, enabled, response } = req.body ?? {};
+  const { command, enabled, response, min_role } = req.body ?? {};
   if (!command) return res.status(400).json({ error: 'Missing command' });
   if (!CMD_NAME_RE.test(command)) {
     return res.status(400).json({ error: 'Invalid command name. Use 1–20 lowercase letters, digits, or underscores.' });
   }
+  if (min_role !== undefined && min_role !== null && !MIN_ROLES.has(min_role)) {
+    return res.status(400).json({ error: 'Invalid min_role. Use everyone, subscriber, vip, moderator, or broadcaster.' });
+  }
+  const role = min_role ?? null;
 
   const cleanResponse = sanitizeResponse(response);
 
   await pool.query(
-    `INSERT INTO command_configs (twitch_user_id, command, enabled, response)
-     VALUES ($1, $2, $3, $4)
+    `INSERT INTO command_configs (twitch_user_id, command, enabled, response, min_role)
+     VALUES ($1, $2, $3, $4, COALESCE($5, 'everyone'))
      ON CONFLICT (twitch_user_id, command) DO UPDATE
        SET enabled  = EXCLUDED.enabled,
-           response = EXCLUDED.response`,
-    [callerId, command, enabled ?? true, cleanResponse]
+           response = EXCLUDED.response,
+           min_role = COALESCE($5, command_configs.min_role)`,
+    [callerId, command, enabled ?? true, cleanResponse, role]
   );
   res.json({ ok: true });
 });
@@ -256,7 +262,7 @@ router.get('/channels/:login/commands', async (req, res) => {
 
   const channelId = channel.rows[0].twitch_user_id;
   const { rows } = await pool.query(
-    'SELECT command, enabled, response FROM command_configs WHERE twitch_user_id = $1',
+    'SELECT command, enabled, response, min_role FROM command_configs WHERE twitch_user_id = $1',
     [channelId]
   );
 
@@ -269,14 +275,14 @@ router.get('/channels/:login/commands', async (req, res) => {
   for (const cmd of BUILTIN_COMMANDS) {
     const override = configMap[cmd];
     if (override && !override.enabled) continue;
-    result.push({ command: cmd, enabled: true, response: override?.response ?? null, builtin: true });
+    result.push({ command: cmd, enabled: true, response: override?.response ?? null, min_role: override?.min_role ?? 'everyone', builtin: true });
   }
 
   // Custom commands — non-builtin rows that are enabled and have a response template
   for (const row of rows) {
     if (BUILTIN_COMMANDS.has(row.command)) continue;
     if (!row.enabled || !row.response) continue;
-    result.push({ command: row.command, enabled: true, response: row.response, builtin: false });
+    result.push({ command: row.command, enabled: true, response: row.response, min_role: row.min_role, builtin: false });
   }
 
   res.json(result);
