@@ -9,9 +9,14 @@ import { getToken } from '../lib/twitchAuth';
 // would throw a TDZ ReferenceError depending on import order.
 import { CHAT_FONTS, loadGoogleFont, CopyUrlChip, inputStyle, labelStyle, labelTextStyle } from './Overlays';
 import {
-  renderTextWidget, renderImageWidget, defaultConfigFor,
-  type Widget, type TextWidgetConfig, type ImageWidgetConfig,
+  renderTextWidget, renderImageWidget, renderCodeWidget, renderNowPlayingWidget, renderShoutoutWidget, defaultConfigFor,
+  type Widget, type WidgetType, type TextWidgetConfig, type ImageWidgetConfig, type CodeWidgetConfig,
+  type NowPlayingWidgetConfig, type ShoutoutWidgetConfig, type ChatWidgetConfig,
 } from '../lib/customOverlayWidgets';
+import { renderChatWidget } from '../lib/ChatWidgetView';
+import {
+  CodeWidgetProperties, NowPlayingWidgetProperties, ShoutoutWidgetProperties, ChatWidgetProperties,
+} from './CustomOverlayWidgetProperties';
 
 interface CustomOverlay {
   id: number;
@@ -23,6 +28,24 @@ const MIN_WIDGET_SIZE = 5; // percent
 
 function clamp(n: number, min: number, max: number) {
   return Math.min(Math.max(n, min), max);
+}
+
+const DEFAULT_SIZE: Record<WidgetType, { w: number; h: number }> = {
+  text: { w: 30, h: 10 },
+  image: { w: 20, h: 20 },
+  code: { w: 30, h: 20 },
+  nowplaying: { w: 32, h: 18 },
+  shoutout: { w: 40, h: 20 },
+  chat: { w: 28, h: 35 },
+};
+
+function renderWidgetContent(widget: Widget) {
+  if (widget.type === 'text') return renderTextWidget(widget.config as TextWidgetConfig);
+  if (widget.type === 'image') return renderImageWidget(widget.config as ImageWidgetConfig);
+  if (widget.type === 'code') return renderCodeWidget(widget.config as CodeWidgetConfig);
+  if (widget.type === 'nowplaying') return renderNowPlayingWidget(widget.config as NowPlayingWidgetConfig);
+  if (widget.type === 'shoutout') return renderShoutoutWidget(widget.config as ShoutoutWidgetConfig);
+  return renderChatWidget(widget.config as ChatWidgetConfig);
 }
 
 export default function CustomOverlayEditor({ overlayId, onBack }: { overlayId: number; onBack: () => void }) {
@@ -89,15 +112,15 @@ export default function CustomOverlayEditor({ overlayId, onBack }: { overlayId: 
     dragRef.current = null;
   };
 
-  const addWidget = (type: 'text' | 'image') => {
+  const addWidget = (type: WidgetType) => {
     if (!overlay) return;
     const maxZ = overlay.widgets.reduce((m, w) => Math.max(m, w.z), 0);
+    const size = DEFAULT_SIZE[type];
     const widget = {
       id: crypto.randomUUID(),
       type,
       x: 35, y: 40,
-      w: type === 'text' ? 30 : 20,
-      h: type === 'text' ? 10 : 20,
+      w: size.w, h: size.h,
       z: maxZ + 1,
       config: defaultConfigFor(type),
     } as Widget;
@@ -207,6 +230,10 @@ export default function CustomOverlayEditor({ overlayId, onBack }: { overlayId: 
           <Eyebrow>Widgets</Eyebrow>
           <Button variant="secondary" icon="plus" onClick={() => addWidget('text')}>Text</Button>
           <Button variant="secondary" icon="plus" onClick={() => addWidget('image')}>Image</Button>
+          <Button variant="secondary" icon="plus" onClick={() => addWidget('code')}>Custom Code</Button>
+          <Button variant="secondary" icon="plus" onClick={() => addWidget('nowplaying')}>Now Playing</Button>
+          <Button variant="secondary" icon="plus" onClick={() => addWidget('shoutout')}>Shoutout</Button>
+          <Button variant="secondary" icon="plus" onClick={() => addWidget('chat')}>Live Chat</Button>
         </Card>
 
         <div
@@ -233,9 +260,9 @@ export default function CustomOverlayEditor({ overlayId, onBack }: { overlayId: 
                 cursor: 'move', boxSizing: 'border-box', userSelect: 'none',
               }}
             >
-              {widget.type === 'text'
-                ? renderTextWidget(widget.config as TextWidgetConfig)
-                : renderImageWidget(widget.config as ImageWidgetConfig)}
+              <div style={{ width: '100%', height: '100%', pointerEvents: 'none' }}>
+                {renderWidgetContent(widget)}
+              </div>
               {selectedId === widget.id && (
                 <div
                   onPointerDown={e => onPointerDownWidget(e, widget, 'resize')}
@@ -265,12 +292,42 @@ export default function CustomOverlayEditor({ overlayId, onBack }: { overlayId: 
               </div>
               {selectedWidget.type === 'text' && (
                 <TextWidgetProperties
+                  key={selectedWidget.id}
                   config={selectedWidget.config}
                   onChange={c => updateWidget(selectedWidget.id, { config: c })}
                 />
               )}
               {selectedWidget.type === 'image' && (
                 <ImageWidgetProperties
+                  key={selectedWidget.id}
+                  config={selectedWidget.config}
+                  onChange={c => updateWidget(selectedWidget.id, { config: c })}
+                />
+              )}
+              {selectedWidget.type === 'code' && (
+                <CodeWidgetProperties
+                  key={selectedWidget.id}
+                  config={selectedWidget.config}
+                  onChange={c => updateWidget(selectedWidget.id, { config: c })}
+                />
+              )}
+              {selectedWidget.type === 'nowplaying' && (
+                <NowPlayingWidgetProperties
+                  key={selectedWidget.id}
+                  config={selectedWidget.config}
+                  onChange={c => updateWidget(selectedWidget.id, { config: c })}
+                />
+              )}
+              {selectedWidget.type === 'shoutout' && (
+                <ShoutoutWidgetProperties
+                  key={selectedWidget.id}
+                  config={selectedWidget.config}
+                  onChange={c => updateWidget(selectedWidget.id, { config: c })}
+                />
+              )}
+              {selectedWidget.type === 'chat' && (
+                <ChatWidgetProperties
+                  key={selectedWidget.id}
                   config={selectedWidget.config}
                   onChange={c => updateWidget(selectedWidget.id, { config: c })}
                 />
