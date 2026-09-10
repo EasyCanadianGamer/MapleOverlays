@@ -24,6 +24,14 @@ const BUILTIN_COMMANDS = [
 const BUILTIN_KEYS = new Set<string>(BUILTIN_COMMANDS.map(c => c.key));
 const CMD_NAME_RE  = /^[a-z0-9_]{1,20}$/;
 
+const MIN_ROLES = [
+  { value: 'everyone',    label: 'Everyone' },
+  { value: 'subscriber',  label: 'Subscriber' },
+  { value: 'vip',         label: 'VIP' },
+  { value: 'moderator',   label: 'Moderator' },
+  { value: 'broadcaster', label: 'Broadcaster' },
+] as const;
+
 const TEMPLATE_VARS = [
   { key: '{user}',             hint: "Chatter's username (who typed the command)" },
   { key: '{channel}',          hint: "Broadcaster's channel name" },
@@ -81,8 +89,8 @@ function VarChips({ inputRef, setter }: { inputRef: React.RefObject<HTMLInputEle
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type CmdCfg = { enabled: boolean; response: string };
-type CustomCmd = { command: string; enabled: boolean; response: string; count: number };
+type CmdCfg = { enabled: boolean; response: string; min_role: string };
+type CustomCmd = { command: string; enabled: boolean; response: string; count: number; min_role: string };
 
 // ── Main component ────────────────────────────────────────────────────────────
 
@@ -95,7 +103,7 @@ export default function BotCommands({ twitchUser }: BotCommandsProps) {
 
   // Built-in command state
   const [commandConfigs, setCommandConfigs] = useState<Record<string, CmdCfg>>(() =>
-    Object.fromEntries(BUILTIN_COMMANDS.map(c => [c.key, { enabled: true, response: c.defaultResponse }]))
+    Object.fromEntries(BUILTIN_COMMANDS.map(c => [c.key, { enabled: true, response: c.defaultResponse, min_role: 'everyone' }]))
   );
 
   // Custom command state
@@ -122,18 +130,18 @@ export default function BotCommands({ twitchUser }: BotCommandsProps) {
     if (!twitchUser || !token) return;
     fetch(`${apiUrl}/bot/commands`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
-      .then((data: Array<{ command: string; enabled: boolean; response: string | null; count: number; builtin: boolean }>) => {
+      .then((data: Array<{ command: string; enabled: boolean; response: string | null; count: number; min_role: string; builtin: boolean }>) => {
         setCommandConfigs(prev => {
           const next = { ...prev };
           for (const cfg of data.filter(d => d.builtin)) {
-            next[cfg.command] = { enabled: cfg.enabled, response: cfg.response ?? '' };
+            next[cfg.command] = { enabled: cfg.enabled, response: cfg.response ?? '', min_role: cfg.min_role ?? 'everyone' };
           }
           return next;
         });
         setCustomCommands(
           data
             .filter(d => !d.builtin)
-            .map(d => ({ command: d.command, enabled: d.enabled, response: d.response ?? '', count: d.count ?? 0 }))
+            .map(d => ({ command: d.command, enabled: d.enabled, response: d.response ?? '', count: d.count ?? 0, min_role: d.min_role ?? 'everyone' }))
         );
       })
       .catch(() => {});
@@ -146,17 +154,23 @@ export default function BotCommands({ twitchUser }: BotCommandsProps) {
     const token = getToken();
     if (!token) return;
     setSavingCmd(key);
-    const updated = { ...(commandConfigs[key] ?? { enabled: true, response: '' }), ...patch };
+    const updated = { ...(commandConfigs[key] ?? { enabled: true, response: '', min_role: 'everyone' }), ...patch };
     try {
-      await fetch(`${apiUrl}/bot/commands`, {
+      const res = await fetch(`${apiUrl}/bot/commands`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ command: key, ...updated }),
       });
-      setCommandConfigs(prev => ({ ...prev, [key]: updated }));
+      if (res.ok) {
+        setCommandConfigs(prev => ({ ...prev, [key]: updated }));
+      }
     } finally {
       setSavingCmd(null);
     }
+  }
+
+  async function saveMinRole(key: string, minRole: string) {
+    await saveCommandConfig(key, { min_role: minRole });
   }
 
   async function commitEdit(key: string) {
@@ -198,10 +212,10 @@ export default function BotCommands({ twitchUser }: BotCommandsProps) {
         const existing = prev.findIndex(c => c.command === name);
         if (existing >= 0) {
           const next = [...prev];
-          next[existing] = { command: name, enabled: true, response: newResponse.trim(), count: prev[existing].count ?? 0 };
+          next[existing] = { command: name, enabled: true, response: newResponse.trim(), count: prev[existing].count ?? 0, min_role: 'everyone' };
           return next;
         }
-        return [...prev, { command: name, enabled: true, response: newResponse.trim(), count: 0 }];
+        return [...prev, { command: name, enabled: true, response: newResponse.trim(), count: 0, min_role: 'everyone' }];
       });
       setIsCreating(false);
       setNewName('');
@@ -219,9 +233,24 @@ export default function BotCommands({ twitchUser }: BotCommandsProps) {
     await fetch(`${apiUrl}/bot/commands`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ command, enabled, response: cmd.response }),
+      body: JSON.stringify({ command, enabled, response: cmd.response, min_role: cmd.min_role }),
     });
     setCustomCommands(prev => prev.map(c => c.command === command ? { ...c, enabled } : c));
+  }
+
+  async function saveCustomMinRole(command: string, minRole: string) {
+    const token = getToken();
+    if (!token) return;
+    const cmd = customCommands.find(c => c.command === command);
+    if (!cmd) return;
+    const res = await fetch(`${apiUrl}/bot/commands`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ command, enabled: cmd.enabled, response: cmd.response, min_role: minRole }),
+    });
+    if (res.ok) {
+      setCustomCommands(prev => prev.map(c => c.command === command ? { ...c, min_role: minRole } : c));
+    }
   }
 
   async function saveCustomEdit(command: string) {
@@ -234,7 +263,7 @@ export default function BotCommands({ twitchUser }: BotCommandsProps) {
       await fetch(`${apiUrl}/bot/commands`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ command, enabled: cmd.enabled, response: editDraft }),
+        body: JSON.stringify({ command, enabled: cmd.enabled, response: editDraft, min_role: cmd.min_role }),
       });
       setCustomCommands(prev => prev.map(c => c.command === command ? { ...c, response: editDraft } : c));
       setEditingCmd(null);
@@ -306,7 +335,7 @@ export default function BotCommands({ twitchUser }: BotCommandsProps) {
         {commandTab === 'builtin' && (
           <div style={{ padding: '12px 18px', display: 'flex', flexDirection: 'column', gap: 8 }}>
             {BUILTIN_COMMANDS.map(cmd => {
-              const cfg = commandConfigs[cmd.key] ?? { enabled: true, response: cmd.defaultResponse };
+              const cfg = commandConfigs[cmd.key] ?? { enabled: true, response: cmd.defaultResponse, min_role: 'everyone' };
               const isEditing = editingCmd === cmd.key;
               const isSaving  = savingCmd  === cmd.key;
               const canEdit   = !!twitchUser && !cmd.dynamic;
@@ -316,6 +345,18 @@ export default function BotCommands({ twitchUser }: BotCommandsProps) {
                     on={cfg.enabled}
                     onChange={() => !isSaving && saveCommandConfig(cmd.key, { enabled: !cfg.enabled })}
                   />
+                  <select
+                    value={cfg.min_role}
+                    onChange={e => void saveMinRole(cmd.key, e.target.value)}
+                    disabled={isSaving}
+                    style={{
+                      height: 28, borderRadius: 7, border: '1px solid var(--border-2)',
+                      background: 'var(--bg-2)', color: 'var(--ink-2)',
+                      fontFamily: 'var(--font-body)', fontSize: 11, padding: '0 6px', cursor: 'pointer',
+                    }}
+                  >
+                    {MIN_ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                  </select>
                   <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--maple-200)', fontWeight: 700, minWidth: 80 }}>
                     {cmd.command}
                   </span>
@@ -442,6 +483,17 @@ export default function BotCommands({ twitchUser }: BotCommandsProps) {
                     on={cmd.enabled}
                     onChange={() => void toggleCustom(cmd.command, !cmd.enabled)}
                   />
+                  <select
+                    value={cmd.min_role}
+                    onChange={e => void saveCustomMinRole(cmd.command, e.target.value)}
+                    style={{
+                      height: 28, borderRadius: 7, border: '1px solid var(--border-2)',
+                      background: 'var(--bg-2)', color: 'var(--ink-2)',
+                      fontFamily: 'var(--font-body)', fontSize: 11, padding: '0 6px', cursor: 'pointer',
+                    }}
+                  >
+                    {MIN_ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                  </select>
                   <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--maple-200)', fontWeight: 700, minWidth: 80 }}>
                     !{cmd.command}
                   </span>

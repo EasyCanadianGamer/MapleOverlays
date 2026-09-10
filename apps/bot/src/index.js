@@ -20,11 +20,11 @@ async function getChannelData(broadcasterId) {
   if (hit && Date.now() - hit.fetchedAt < CONFIG_TTL) return hit;
 
   const [cfgResult, chanResult] = await Promise.all([
-    pool.query('SELECT command, enabled, response FROM command_configs WHERE twitch_user_id = $1', [broadcasterId]),
+    pool.query('SELECT command, enabled, response, min_role FROM command_configs WHERE twitch_user_id = $1', [broadcasterId]),
     pool.query('SELECT lastfm_username, access_token, offline_since, tip_url, automod_settings FROM channels WHERE twitch_user_id = $1', [broadcasterId]),
   ]);
 
-  const commandConfigs = Object.fromEntries(cfgResult.rows.map(r => [r.command, { enabled: r.enabled, response: r.response }]));
+  const commandConfigs = Object.fromEntries(cfgResult.rows.map(r => [r.command, { enabled: r.enabled, response: r.response, min_role: r.min_role }]));
   const lastfmUsername = chanResult.rows[0]?.lastfm_username ?? null;
   const rawToken = chanResult.rows[0]?.access_token;
   let accessToken = null;
@@ -112,7 +112,7 @@ const manager = new EventSubManager(
         return { commandConfigs: {}, lastfmUsername: null, accessToken: null, offlineSince: null, tipUrl: null, automodSettings: [true, true, true, false] };
       });
 
-    const { isSubscriber = false, emoteCount = 0, messageId = '' } = meta;
+    const { isSubscriber = false, isVip = false, isModerator = false, isBroadcaster = false, emoteCount = 0, messageId = '' } = meta;
     const modded = await enforceAutoMod(
       broadcasterId, chatterId, chatterLogin, messageText, messageId,
       isSubscriber, emoteCount, automodSettings
@@ -135,7 +135,7 @@ const manager = new EventSubManager(
     const reply = await handleCommand(messageText, {
       broadcasterId, broadcasterLogin, chatterId, chatterLogin,
       lastfmUsername, commandConfigs, accessToken, offlineSince, tipUrl,
-      getWatchtime,
+      getWatchtime, isSubscriber, isVip, isModerator, isBroadcaster,
     });
     if (!reply) return;
     try {

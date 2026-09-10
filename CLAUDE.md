@@ -94,7 +94,7 @@ Migration files live in `apps/api/migrations/`. The bot has no migration runner 
 
 Schema overview:
 - `channels` — one row per broadcaster who invited the bot; `access_token`/`refresh_token` stored AES-256-GCM encrypted; `automod_settings` is a JSONB boolean array `[links, caps, emoteSpam, firstTimeWarn]`; `reconnect_requested_at` is polled by the bot to trigger EventSub reconnect; `nowplaying_triggered_at` is stamped by the bot when `!song` is used and polled by the Now Playing overlay to force-show immediately
-- `command_configs` — per-channel command overrides (enabled flag, custom response template, and `count` INT for counter commands)
+- `command_configs` — per-channel command overrides (enabled flag, custom response template, `count` INT for counter commands, and `min_role` TEXT gating who can run the command — `everyone`/`subscriber`/`vip`/`moderator`/`broadcaster`, default `everyone`)
 - `watchtimes` — accumulated viewer watchtime in seconds per channel
 - `channel_events` — activity feed log; `event_type` values: `follow`, `sub`, `cheer`, `raid`, `mod_action`; indexed by `(channel_user_id, created_at DESC)`
 - `bot_timers` — periodic auto-messages per channel; fires when both `online_interval`/`offline_interval` (minutes, 0=disabled) has elapsed AND `chat_lines` minimum has been met since last fire
@@ -124,7 +124,7 @@ Routes are split between two files:
 | GET | `/auth/bot/callback` | Twitch OAuth callback — exchanges code, encrypts + stores tokens; when `state=bot_setup`, also upserts the bot's own tokens into `bot_tokens` |
 | GET | `/bot/status` | Returns `{ invited, active }` for the caller's channel |
 | GET | `/bot/commands` | Lists command configs for the caller's channel |
-| PUT | `/bot/commands` | Create/update a command config |
+| PUT | `/bot/commands` | Create/update a command config (`min_role` omitted preserves the existing value; only a new command defaults to `everyone`) |
 | DELETE | `/bot/commands/:command` | Delete a custom command |
 | GET | `/settings` | Returns `{ lastfm_username, tip_url }` |
 | PUT | `/settings` | Updates `lastfm_username` and/or `tip_url` |
