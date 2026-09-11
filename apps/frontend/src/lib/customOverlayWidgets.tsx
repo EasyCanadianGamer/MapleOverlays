@@ -1,3 +1,6 @@
+import { useEffect, useRef } from 'react';
+import { connectTwitchChat } from './twitchChat';
+
 export interface TextWidgetConfig {
   content: string;
   fontFamily: string;
@@ -15,6 +18,8 @@ export interface CodeWidgetConfig {
   html: string;
   css: string;
   js: string;
+  fields: string;
+  channel: string;
 }
 
 export interface NowPlayingWidgetConfig {
@@ -103,6 +108,8 @@ export function defaultConfigFor(
       html: '<div class="hello">Hello, overlay!</div>',
       css: '.hello { font: 700 28px sans-serif; color: #fff; }',
       js: '',
+      fields: '{}',
+      channel: '',
     };
   }
   if (type === 'nowplaying') {
@@ -158,16 +165,68 @@ export function renderImageWidget(config: ImageWidgetConfig) {
   );
 }
 
-export function renderCodeWidget(config: CodeWidgetConfig) {
-  const doc = `<!doctype html><html><head><style>${config.css}</style></head>` +
-    `<body>${config.html}<script>${config.js}</script></body></html>`;
+function parseFields(raw: string): Record<string, unknown> {
+  try {
+    const schema = JSON.parse(raw) as Record<string, { value?: unknown }>;
+    const out: Record<string, unknown> = {};
+    for (const [key, field] of Object.entries(schema)) out[key] = field?.value;
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+function CodeWidgetView({ config }: { config: CodeWidgetConfig }) {
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  useEffect(() => {
+    if (!config.channel.trim()) return;
+    const disconnect = connectTwitchChat(config.channel, msg => {
+      iframeRef.current?.contentWindow?.postMessage({
+        __mo: true,
+        kind: 'chat',
+        payload: {
+          text: msg.text,
+          displayName: msg.user,
+          username: msg.username,
+          tags: { mod: msg.isMod ? '1' : '0', badges: msg.badges.join(',') },
+        },
+      }, '*');
+    });
+    return disconnect;
+  }, [config.channel]);
+
+  const fieldData = parseFields(config.fields);
+  // Escaping `<` guards against a field value containing the literal text
+  // "</script>", which would otherwise prematurely close this script tag
+  // when the browser parses the srcDoc HTML.
+  const fieldDataJson = JSON.stringify(fieldData).replace(/</g, '\\u003c');
+  const doc = `<!doctype html><html><head><style>${config.css}</style></head><body>` +
+    `${config.html}` +
+    `<script>
+      window.addEventListener('message', function (e) {
+        if (!e.data || e.data.__mo !== true || e.data.kind !== 'chat') return;
+        window.dispatchEvent(new CustomEvent('onEventReceived', { detail: { listener: 'message', event: { data: e.data.payload } } }));
+      });
+    </script>` +
+    `<script>${config.js}</script>` +
+    `<script>
+      window.dispatchEvent(new CustomEvent('onWidgetLoad', { detail: { fieldData: ${fieldDataJson} } }));
+    </script>` +
+    `</body></html>`;
+
   return (
     <iframe
+      ref={iframeRef}
       srcDoc={doc}
       sandbox="allow-scripts"
       style={{ width: '100%', height: '100%', border: 'none', background: 'transparent' }}
     />
   );
+}
+
+export function renderCodeWidget(config: CodeWidgetConfig) {
+  return <CodeWidgetView config={config} />;
 }
 
 // Unlike the code widget, this iframe loads our own trusted app route (not
