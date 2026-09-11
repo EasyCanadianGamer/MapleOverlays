@@ -9,6 +9,7 @@ dist
 .agents/
 .claude/
 .remember/
+CLAUDE.md
 skills-lock.json
 docs/superpowers/
 docs/internal
