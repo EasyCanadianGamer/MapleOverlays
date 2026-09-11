@@ -2,6 +2,9 @@ export interface TwitchChatMessage {
   user: string;
   color: string;
   text: string;
+  username: string;
+  isMod: boolean;
+  badges: string[];
 }
 
 export type MessageHandler = (msg: TwitchChatMessage) => void;
@@ -38,10 +41,13 @@ function parseLine(line: string, onMessage: MessageHandler, onConnected?: () => 
 
   const text      = line.slice(colonIdx + 1);
   const userMatch = line.match(/:([^!]+)!/);
-  const user      = tags['display-name'] || (userMatch ? userMatch[1] : 'viewer');
+  const username  = userMatch ? userMatch[1] : 'viewer';
+  const user      = tags['display-name'] || username;
   const color     = tags['color'] || '#B7AAAE';
+  const isMod     = tags['mod'] === '1';
+  const badges    = tags['badges'] ? tags['badges'].split(',').filter(Boolean) : [];
 
-  onMessage({ user, color, text });
+  onMessage({ user, color, text, username, isMod, badges });
 }
 
 /**
