@@ -3,6 +3,7 @@ import CodeMirror from '@uiw/react-codemirror';
 import { html } from '@codemirror/lang-html';
 import { css } from '@codemirror/lang-css';
 import { javascript } from '@codemirror/lang-javascript';
+import { json } from '@codemirror/lang-json';
 import { CHAT_FONTS, loadGoogleFont, inputStyle, labelStyle, labelTextStyle } from './Overlays';
 import type {
   CodeWidgetConfig, NowPlayingWidgetConfig, ShoutoutWidgetConfig, ChatWidgetConfig,
@@ -43,13 +44,14 @@ function FontPicker({ value, onChange }: { value: string; onChange: (font: strin
 
 // ── Code widget ──────────────────────────────────────────────────────────────
 
-const CODE_TABS = ['html', 'css', 'js'] as const;
+const CODE_TABS = ['html', 'css', 'js', 'fields'] as const;
 type CodeTab = typeof CODE_TABS[number];
 
 function extensionsFor(tab: CodeTab) {
   if (tab === 'html') return [html()];
   if (tab === 'css') return [css()];
-  return [javascript()];
+  if (tab === 'js') return [javascript()];
+  return [json()];
 }
 
 export function CodeWidgetProperties({ config, onChange }: { config: CodeWidgetConfig; onChange: (c: CodeWidgetConfig) => void }) {
@@ -67,6 +69,10 @@ export function CodeWidgetProperties({ config, onChange }: { config: CodeWidgetC
 
   return (
     <>
+      <label style={labelStyle}>
+        <span style={labelTextStyle}>Twitch channel (for chat commands, optional)</span>
+        <input value={config.channel} onChange={e => onChange({ ...config, channel: e.target.value })} style={inputStyle} placeholder="twitch login" />
+      </label>
       <div style={{ display: 'flex', gap: 6 }}>
         {CODE_TABS.map(t => (
           <button key={t} onClick={() => setTab(t)} style={{ ...pillStyle(tab === t), textTransform: 'uppercase' }}>
@@ -85,7 +91,7 @@ export function CodeWidgetProperties({ config, onChange }: { config: CodeWidgetC
         />
       </div>
       <div style={{ fontSize: 11, color: 'var(--ink-3)' }}>
-        Runs sandboxed — no access to your dashboard, other widgets, or viewer data.
+        Runs sandboxed — no access to your dashboard, other widgets, or viewer data. Chat commands connect only when a channel is set above.
       </div>
     </>
   );
