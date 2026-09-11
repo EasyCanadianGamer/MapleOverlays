@@ -106,6 +106,39 @@ The Custom Code widget gives you three editable panes — HTML, CSS, and JavaScr
 Custom code runs in a sandboxed frame with no access to your dashboard, your Twitch login, or any other widget on the canvas — it cannot read cookies, local storage, or the rest of the page. It can still make its own network requests (e.g. to a public API), and it is visible to anyone who has the overlay's OBS URL, so avoid putting anything sensitive in it.
 </Aside>
 
+#### Configurable Fields
+
+A fourth pane, **Fields**, lets you define your own configurable values as JSON instead of hardcoding them into your JavaScript:
+
+```json
+{
+  "greeting": { "type": "text", "label": "Greeting", "value": "Hello, overlay!" }
+}
+```
+
+The resolved values are delivered to your JavaScript once the widget loads:
+
+```js
+window.addEventListener('onWidgetLoad', (obj) => {
+  const fields = obj.detail.fieldData;
+  document.body.textContent = fields.greeting;
+});
+```
+
+#### Chat Commands (Porting a StreamElements Widget)
+
+Fill in a **Twitch channel** above the code panes to connect the widget to that channel's live chat. Messages are delivered to your JavaScript the same way StreamElements delivers them, so most StreamElements chat-command widgets can be pasted in with little to no changes:
+
+```js
+window.addEventListener('onEventReceived', (obj) => {
+  if (obj.detail.listener !== 'message') return;
+  const data = obj.detail.event.data;
+  console.log(data.text, data.displayName, data.username, data.tags.mod, data.tags.badges);
+});
+```
+
+Leave the channel field blank to keep the widget chat-free.
+
 ### Now Playing / Shoutout Widgets
 
 These reuse the exact same Now Playing and Shoutout behavior described earlier in this guide (same triggers, same live polling) but as an independently sized and positioned widget on your custom canvas, so you can combine them with other widgets in one layout instead of using a separate OBS Browser Source for each.
