@@ -34,10 +34,16 @@ export default defineConfig({
           items: [
             { label: 'Introduction', slug: '' },
             { label: 'Bot Setup', slug: 'guides/bot-setup' },
+            { label: 'Compare', slug: 'compare' },
+          ],
+        },
+        {
+          label: 'Overlays',
+          items: [
             { label: 'Managing Overlays', slug: 'guides/managing-overlays' },
             { label: 'Chat Overlay', slug: 'guides/chat-overlay' },
             { label: 'Now Playing', slug: 'guides/nowplaying-overlay' },
-            { label: 'Compare', slug: 'compare' },
+            { label: 'Future Overlays', slug: 'guides/future-overlays' },
           ],
         },
         {
