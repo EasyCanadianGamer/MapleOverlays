@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /dashboard
+Disallow: /overlays/
+Disallow: /auth/
+Disallow: /login
+
+Sitemap: https://mapleoverlays.canadian-gamer.com/sitemap.xml

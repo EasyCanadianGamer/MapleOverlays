@@ -318,6 +318,19 @@ export default function Landing() {
                 {label}
               </Link>
             ))}
+            <a
+              href={`${DOC_URL}/compare/`}
+              style={{
+                fontFamily: 'var(--font-body)',
+                fontSize: 14,
+                fontWeight: 500,
+                color: 'var(--ink-2)',
+                textDecoration: 'none',
+                transition: 'color var(--dur-1) var(--ease-out)',
+              }}
+            >
+              Compare
+            </a>
           </div>
 
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 14 }}>
@@ -380,7 +393,7 @@ export default function Landing() {
                   marginTop: 22,
                 }}
               >
-                Overlays, a bot, and custom commands. <strong style={{ color: 'var(--ink-0)' }}>That's it.</strong> No sponsorship upsells, no AI growth coaching, no lock-in.
+                Free, open-source Twitch overlays and chat bot, an alternative to StreamElements and PixelChat. <strong style={{ color: 'var(--ink-0)' }}>That's it.</strong> No sponsorship upsells, no AI growth coaching, no lock-in.
               </p>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 34, flexWrap: 'wrap' }}>

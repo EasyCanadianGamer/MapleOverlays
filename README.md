@@ -1,6 +1,6 @@
 # MapleOverlays
 
-MapleOverlays is a Twitch overlay and chat bot service for streamers. You sign in with Twitch, make overlays in a dashboard, and add each one to OBS as a browser source. A chat bot joins your channel and answers commands.
+MapleOverlays is a free, open-source Twitch overlay and chat bot service for streamers, and an alternative to StreamElements and PixelChat. You sign in with Twitch, make overlays in a dashboard, and add each one to OBS as a browser source. A chat bot joins your channel and answers commands.
 
 Hosted version: https://mapleoverlays.canadian-gamer.com
 Documentation: https://docs.mapleoverlays.canadian-gamer.com
@@ -25,6 +25,19 @@ Documentation: https://docs.mapleoverlays.canadian-gamer.com
 **Stream Manager**
 
 - Channel stats and stream title and category editing from the dashboard.
+
+## Why MapleOverlays
+
+| If you want | MapleOverlays |
+|---|---|
+| An open-source StreamElements alternative | The code is public under AGPL-3.0. Read it, fork it, or host your own copy. |
+| A bot under your own name | Self-host it and give the bot its own Twitch account, so it speaks under whatever name you choose. This needs a separate bot account. |
+| PixelChat-style features without paying | No paid tier. Everything in this README is free. |
+| OBS overlays | Chat and Now Playing overlays, each with its own browser source URL |
+| A chat bot | Built-in and custom commands, timers, counters and moderation |
+| Data you own | Self-host the whole stack with Docker Compose, so your data stays on your server. Or use the hosted version. |
+
+See the full [comparison](https://docs.mapleoverlays.canadian-gamer.com/compare/) for details.
 
 ## Running it yourself
 
