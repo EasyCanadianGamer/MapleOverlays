@@ -4,17 +4,22 @@ import starlightThemeFlexoki from 'starlight-theme-flexoki'
 
 
 export default defineConfig({
+  site: 'https://docs.mapleoverlays.canadian-gamer.com',
   integrations: [
     starlight({
       plugins: [starlightThemeFlexoki()],
       title: 'MapleOverlays',
-      description: 'Twitch overlay and bot service for streamers.',
+      description: 'Docs for MapleOverlays, a free open-source Twitch overlay and chat bot, and alternative to StreamElements and PixelChat.',
       logo: {
         src: './src/assets/logo-mark-white.png',
         alt: 'MapleOverlays',
         replacesTitle: false,
       },
       favicon: '/favicon.png',
+      head: [
+        { tag: 'meta', attrs: { name: 'keywords', content: 'streamelements alternative, pixelchat alternative, open source twitch overlay, twitch chat bot, obs browser source, self-hosted twitch bot' } },
+        { tag: 'meta', attrs: { property: 'og:site_name', content: 'MapleOverlays Docs' } },
+      ],
       customCss: ['./src/styles/custom.css'],
       social: [
         {
@@ -32,6 +37,7 @@ export default defineConfig({
             { label: 'Managing Overlays', slug: 'guides/managing-overlays' },
             { label: 'Chat Overlay', slug: 'guides/chat-overlay' },
             { label: 'Now Playing', slug: 'guides/nowplaying-overlay' },
+            { label: 'Compare', slug: 'compare' },
           ],
         },
         {
