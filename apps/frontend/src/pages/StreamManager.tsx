@@ -265,7 +265,6 @@ interface StreamManagerProps {
   infoSaving: boolean;
   infoError: string | null;
   onSaveStreamInfo: (title: string, gameId: string) => Promise<void>;
-  onTestAlert: () => void;
   onNav: (view: ViewId) => void;
 }
 
@@ -287,7 +286,6 @@ export default function StreamManager({
   infoSaving,
   infoError,
   onSaveStreamInfo,
-  onTestAlert,
   onNav,
 }: StreamManagerProps) {
   const [duration, setDuration] = useState('0s');
@@ -477,8 +475,6 @@ export default function StreamManager({
           }}
         >
           <Eyebrow style={{ color: 'var(--ink-3)' }}>Recent activity</Eyebrow>
-          <div style={{ flex: 1 }} />
-          <Button variant="ghost" size="sm" icon="play" onClick={onTestAlert}>Test alert</Button>
         </div>
         <div style={{ padding: '0 18px 8px' }}>
           {activity.length === 0 ? (
@@ -511,7 +507,7 @@ export default function StreamManager({
       <div>
         <Eyebrow style={{ marginBottom: 12 }}>Your tools</Eyebrow>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
-          <HubCard icon="image"    accent="#C12F5D" title="Overlays" desc="Browser sources for OBS — alerts and chat overlays." status="Configure overlays" onClick={() => onNav('overlays')} />
+          <HubCard icon="image"    accent="#C12F5D" title="Overlays" desc="Browser sources for OBS — chat and Now Playing overlays." status="Configure overlays" onClick={() => onNav('overlays')} />
           <HubCard icon="bot"      accent="#4ED4B5" title="Bot"      desc="MapleBot in chat — commands & auto-mod."           status="Commands & filters" onClick={() => onNav('bot-commands')} />
           <HubCard icon="settings" accent="#5BA8FF" title="Settings" desc="Channel connection and bot identity."               status={channelStatus}      onClick={() => onNav('settings')} />
         </div>

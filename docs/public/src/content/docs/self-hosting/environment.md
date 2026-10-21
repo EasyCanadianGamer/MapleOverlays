@@ -19,7 +19,7 @@ These must be set before starting the stack.
 | Variable | Used by | Description |
 |----------|---------|-------------|
 | `TWITCH_CLIENT_ID` | api, bot | Your app's client ID from the Twitch Developer Console |
-| `TWITCH_CLIENT_SECRET` | api | Your app's client secret (never exposed to the frontend) |
+| `TWITCH_CLIENT_SECRET` | api | Your app's client secret (never exposed to the frontend). Also used to look up chat badges for the chat overlay |
 | `TWITCH_BOT_CALLBACK_URI` | api | Full URL of the bot OAuth callback — e.g. `https://your-domain.com/auth/bot/callback` |
 | `BOT_USER_ID` | bot | Twitch user ID of the bot account (not the broadcaster) |
 | `BOT_ACCESS_TOKEN` | bot | OAuth access token for the bot account — requires `user:bot` + `user:write:chat` scopes |

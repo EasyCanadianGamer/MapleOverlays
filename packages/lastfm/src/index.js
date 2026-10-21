@@ -1,5 +1,17 @@
 const LASTFM_BASE = 'https://ws.audioscrobbler.com/2.0/';
 
+// When Last.fm has no cover it sends this grey star instead of an empty value.
+const PLACEHOLDER_ART = '2a96cbd8b46e442fc41c2b86b821562f';
+
+// Best real cover: extralarge (300px), then large (174px). The small sizes look blurry on the card.
+function pickAlbumArt(images) {
+  for (const size of ['extralarge', 'large']) {
+    const url = images.find(i => i.size === size)?.['#text'];
+    if (url && !url.includes(PLACEHOLDER_ART)) return url;
+  }
+  return '';
+}
+
 async function getNowPlaying(username) {
   const url = new URL(LASTFM_BASE);
   url.searchParams.set('method', 'user.getrecenttracks');
@@ -63,7 +75,7 @@ async function getNowPlayingData(username) {
   const track = data.recenttracks?.track?.[0];
   if (track && track['@attr']?.nowplaying === 'true') {
     const images  = track.image ?? [];
-    const albumArt = images.find(i => i.size === 'extralarge')?.[`#text`] ?? '';
+    const albumArt = pickAlbumArt(images);
     return {
       isPlaying: true,
       track:     track.name,

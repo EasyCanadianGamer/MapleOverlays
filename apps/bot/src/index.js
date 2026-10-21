@@ -1,5 +1,5 @@
 const pool = require('./db');
-const { loadBotTokensFromDb, refreshBotToken, sendMessage, deleteMessage, timeoutUser, getUserInfo, getTopClipSlug, getClipDownloadUrl } = require('./twitch');
+const { loadBotTokensFromDb, refreshBotToken, sendMessage, deleteMessage, timeoutUser } = require('./twitch');
 const { handleCommand } = require('./commands');
 const EventSubManager = require('./eventsub');
 const { decrypt } = require('./crypto');
@@ -145,35 +145,6 @@ const manager = new EventSubManager(
           'UPDATE channels SET nowplaying_triggered_at = NOW() WHERE twitch_user_id = $1',
           [broadcasterId]
         ).catch(err => console.error('Failed to set nowplaying_triggered_at:', err.message));
-      }
-      if (messageText.trim().split(' ')[0] === '!so') {
-        const soParts = messageText.trim().split(/\s+/);
-        const soTarget = (soParts[1] ?? '').replace(/^@/, '') || null;
-        console.log(`[so] triggered by ${chatterLogin}, target: ${soTarget}`);
-        if (soTarget) {
-          (async () => {
-            try {
-              const info = await getUserInfo(soTarget);
-              console.log(`[so] getUserInfo(${soTarget}):`, info ? `id=${info.id}` : 'null');
-              const clipSlug = info ? await getTopClipSlug(info.id) : null;
-              const clipUrl  = clipSlug ? await getClipDownloadUrl(clipSlug) : null;
-              console.log(`[so] clip url: ${clipUrl ?? 'none'}`);
-              await pool.query(
-                `UPDATE channels SET
-                  shoutout_triggered_at = NOW(),
-                  shoutout_target       = $2,
-                  shoutout_clip_url     = $3,
-                  shoutout_display_name = $4,
-                  shoutout_avatar_url   = $5
-                 WHERE twitch_user_id = $1`,
-                [broadcasterId, soTarget, clipUrl, info?.display_name ?? soTarget, info?.profile_image_url ?? null]
-              );
-              console.log(`[so] DB updated for channel ${broadcasterId}`);
-            } catch (err) {
-              console.error('Failed to set shoutout trigger:', err.message);
-            }
-          })();
-        }
       }
       await logEvent(broadcasterId, 'command', chatterLogin, { command: messageText.split(' ')[0] });
     } catch (err) {

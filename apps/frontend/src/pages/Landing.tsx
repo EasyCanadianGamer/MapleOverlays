@@ -622,7 +622,7 @@ export default function Landing() {
               icon="image"
               color="#C12F5D"
               title="Overlays"
-              desc="Browser sources that load in 80ms. Drop a URL into OBS. Follow alerts, sub celebrations, chat ticker, BRB screens."
+              desc="Browser sources that load in 80ms. Drop a URL into OBS. Make as many chat and Now Playing overlays as you like."
             />
             <FeatureCard
               icon="bot"
@@ -666,7 +666,7 @@ export default function Landing() {
               color="var(--tier-free)"
               cta="Get started"
               ctaHref="/dashboard"
-              features={['Overlays', 'Twitch bot', 'Custom commands', 'Up to 5 essential overlays + 2 custom overlays']}
+              features={['Overlays', 'Twitch bot', 'Custom commands', 'Chat and Now Playing overlays']}
             />
             <TierCard
               name="Premium"
@@ -675,7 +675,7 @@ export default function Landing() {
               color="var(--tier-premium)"
               cta="Go Premium"
               ctaHref="/dashboard"
-              features={['Everything in Free', 'Unlimited overlays', 'Priority alerts', 'Custom domain' ]}
+              features={['Everything in Free', 'Unlimited overlays', 'Priority support', 'Custom domain' ]}
               highlight
             />
             <TierCard

@@ -108,85 +108,6 @@ async function getUserIdByLogin(login) {
   return data[0]?.id ?? null;
 }
 
-async function getUserInfo(login) {
-  const token = await getAppAccessToken();
-  const res = await fetch(
-    `https://api.twitch.tv/helix/users?login=${encodeURIComponent(login)}`,
-    { headers: { Authorization: `Bearer ${token}`, 'Client-Id': process.env.TWITCH_CLIENT_ID } },
-  );
-  if (!res.ok) return null;
-  const { data } = await res.json();
-  const u = data[0];
-  if (!u) return null;
-  return { id: u.id, display_name: u.display_name, profile_image_url: u.profile_image_url };
-}
-
-async function getTopClipSlug(broadcasterId) {
-  const token = await getAppAccessToken();
-  const res = await fetch(
-    `https://api.twitch.tv/helix/clips?broadcaster_id=${broadcasterId}&first=1`,
-    { headers: { Authorization: `Bearer ${token}`, 'Client-Id': process.env.TWITCH_CLIENT_ID } },
-  );
-  if (!res.ok) return null;
-  const { data } = await res.json();
-  // clip.id is the clip's "slug" — the same value used in embed_url's ?clip= param
-  return data[0]?.id ?? null;
-}
-
-// Twitch's official clips.twitch.tv embed player actively resists unmuted autoplay
-// on third-party domains, even via its own JS SDK. Fetching the clip's raw MP4 lets
-// us play it in a plain <video> element instead, which isn't subject to that policy.
-// Uses the same GQL endpoint + public web client-id that Twitch's own web frontend
-// (and community tools like yt-dlp/streamlink) use to resolve clip playback URLs.
-// Sends the full query text rather than a persisted-query hash — Twitch rotates
-// those hashes without notice and an unrecognized one fails the whole request.
-// Undocumented — if Twitch changes this, it fails closed (returns null) and the
-// shoutout falls back to showing no clip.
-const TWITCH_GQL_CLIENT_ID = 'kimne78kx3ncx6brgo4mv6wki5h1ko';
-const CLIP_ACCESS_TOKEN_QUERY = `
-  query VideoAccessToken_Clip($slug: ID!) {
-    clip(slug: $slug) {
-      playbackAccessToken(params: { platform: "web", playerBackend: "mediaplayer", playerType: "site" }) {
-        signature
-        value
-      }
-      videoQualities {
-        quality
-        sourceURL
-      }
-    }
-  }
-`;
-
-async function getClipDownloadUrl(slug) {
-  try {
-    const res = await fetch('https://gql.twitch.tv/gql', {
-      method: 'POST',
-      headers: { 'Client-Id': TWITCH_GQL_CLIENT_ID, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        operationName: 'VideoAccessToken_Clip',
-        variables: { slug },
-        query: CLIP_ACCESS_TOKEN_QUERY,
-      }),
-    });
-    if (!res.ok) return null;
-    const json = await res.json();
-    const clip = json?.data?.clip;
-    const accessToken = clip?.playbackAccessToken;
-    const qualities = clip?.videoQualities;
-    if (!accessToken?.value || !accessToken?.signature || !qualities?.length) return null;
-    const best = [...qualities].sort((a, b) => Number(b.quality) - Number(a.quality))[0];
-    if (!best?.sourceURL) return null;
-    const url = new URL(best.sourceURL);
-    url.searchParams.set('sig', accessToken.signature);
-    url.searchParams.set('token', accessToken.value);
-    return url.toString();
-  } catch (err) {
-    console.error('getClipDownloadUrl failed:', err.message);
-    return null;
-  }
-}
-
 async function getFollowAge(broadcasterToken, broadcasterId, userId) {
   const res = await fetch(
     `https://api.twitch.tv/helix/channels/followers?broadcaster_id=${broadcasterId}&user_id=${userId}`,
@@ -295,4 +216,4 @@ async function _doRefresh() {
   return data.access_token;
 }
 
-module.exports = { loadBotTokensFromDb, getAppAccessToken, refreshBotToken, sendMessage, getBroadcasterStream, getChannelInfo, getUserIdByLogin, getUserInfo, getTopClipSlug, getClipDownloadUrl, getFollowAge, getSubAge, getUserCreatedAt, deleteMessage, timeoutUser };
+module.exports = { loadBotTokensFromDb, getAppAccessToken, refreshBotToken, sendMessage, getBroadcasterStream, getChannelInfo, getUserIdByLogin, getFollowAge, getSubAge, getUserCreatedAt, deleteMessage, timeoutUser };
