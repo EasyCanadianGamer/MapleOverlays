@@ -3,7 +3,7 @@
 MapleOverlays is a free, open-source Twitch overlay and chat bot service for streamers, and an alternative to StreamElements and PixelChat. You sign in with Twitch, make overlays in a dashboard, and add each one to OBS as a browser source. A chat bot joins your channel and answers commands.
 
 Hosted version: https://mapleoverlays.canadian-gamer.com
-Documentation: https://docs.mapleoverlays.canadian-gamer.com
+Documentation: https://mapleoverlays-docs.canadian-gamer.com/
 
 ## What it does
 
