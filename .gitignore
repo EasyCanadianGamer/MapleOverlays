@@ -13,3 +13,6 @@ CLAUDE.md
 skills-lock.json
 docs/superpowers/
 docs/internal
+
+# Astro generated cache
+.astro/
