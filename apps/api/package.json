@@ -1,0 +1,17 @@
+{
+  "name": "@maple/api",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "start": "node --env-file-if-exists=../../.env src/index.js",
+    "dev": "node --watch --env-file-if-exists=../../.env src/index.js",
+    "migrate": "node --env-file-if-exists=../../.env src/migrate.js"
+  },
+  "dependencies": {
+    "@maple/lastfm": "workspace:*",
+    "@maple/shared": "workspace:*",
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "pg": "^8.13.3"
+  }
+}

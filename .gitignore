@@ -1,0 +1,15 @@
+.env
+.env.*
+!.env.example
+node_modules
+dist
+.git
+
+# Claude Code / plugin tooling
+.agents/
+.claude/
+.remember/
+CLAUDE.md
+skills-lock.json
+docs/superpowers/
+docs/internal

@@ -1,0 +1,4 @@
+ALTER TABLE channels
+  ADD COLUMN IF NOT EXISTS lastfm_username TEXT,
+  ADD COLUMN IF NOT EXISTS tip_url         TEXT,
+  ADD COLUMN IF NOT EXISTS offline_since   TIMESTAMPTZ;

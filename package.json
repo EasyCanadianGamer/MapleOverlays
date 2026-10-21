@@ -1,0 +1,8 @@
+{
+  "name": "mapleoverlays",
+  "private": true,
+  "engines": {
+    "node": ">=22.12.0",
+    "pnpm": ">=9"
+  }
+}

@@ -1,0 +1,78 @@
+@import url("https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&display=swap");
+
+@font-face {
+  font-family: "Geist";
+  src: url("/fonts/Geist-VariableFont_wght.ttf") format("truetype-variations");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Geist";
+  src: url("/fonts/Geist-Italic-VariableFont_wght.ttf") format("truetype-variations");
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Geist Mono";
+  src: url("/fonts/GeistMono-VariableFont_wght.ttf") format("truetype-variations");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Geist Mono";
+  src: url("/fonts/GeistMono-Italic-VariableFont_wght.ttf") format("truetype-variations");
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+}
+
+/* ── MapleOverlays brand theme ── */
+:root {
+  /* Accent: maple-700 / 500 / 200 */
+  --sl-color-accent-low:  #70042C;
+  --sl-color-accent:      #AC0747;
+  --sl-color-accent-high: #E78C9F;
+
+  /* Dark warm backgrounds */
+  --sl-color-black:          #16100C;
+  --sl-color-bg:             #16100C;
+  --sl-color-bg-nav:         #1F1611;
+  --sl-color-bg-sidebar:     #1F1611;
+  --sl-color-bg-inline-code: #2A1E17;
+
+  /* Text */
+  --sl-color-text:        #E9DACE;
+  --sl-color-text-accent: #E78C9F;
+
+  /* Borders */
+  --sl-color-hairline:       rgba(255, 219, 178, 0.07);
+  --sl-color-hairline-light: rgba(255, 219, 178, 0.12);
+  --sl-color-hairline-shade: #16100C;
+
+  /* Fonts */
+  --sl-font:      "Geist", "Inter", system-ui, sans-serif;
+  --sl-font-mono: "Geist Mono", ui-monospace, "JetBrains Mono", monospace;
+}
+
+/* Headings use Bricolage Grotesque to match the app */
+.sl-markdown-content h1,
+.sl-markdown-content h2,
+.sl-markdown-content h3,
+.sl-markdown-content h4,
+.sl-markdown-content h5,
+.sl-markdown-content h6,
+.hero h1,
+.page-title {
+  font-family: "Bricolage Grotesque", "Inter", system-ui, sans-serif;
+  letter-spacing: -0.02em;
+}
+
+/* Site header title */
+.site-title {
+  font-family: "Bricolage Grotesque", "Inter", system-ui, sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
