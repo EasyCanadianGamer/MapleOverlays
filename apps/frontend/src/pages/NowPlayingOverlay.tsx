@@ -1,270 +1,170 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useParams, useSearchParams } from 'react-router-dom';
+import NowPlayingCard, { ENTER_MS, EXIT_MS, type AnimState, type TrackData } from '../components/overlay/NowPlayingCard';
+import { configFromToken, decidePoll, parseLegacyConfig, shouldAnimateIn, type NpConfig } from '../lib/nowPlaying';
+import { apiUrl, getPublicOverlay } from '../lib/overlayApi';
+import { reconcilePublic } from '../lib/publicOverlay';
+import { useOverlayFont } from '../lib/useOverlayFont';
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+const CONFIG_POLL_MS = 15_000;
+const TRIGGER_POLL_MS = 5_000;
 
-interface NowPlayingConfig {
-  user:      string;
-  channel:   string;
-  duration:  number;
-  corner:    'bottom-left' | 'bottom-right' | 'top-left' | 'top-right';
-  from:      'left' | 'right';
-  color:     string;
-  font:      string;
-  fontColor: string;
-  style:     'glass' | 'dark' | 'stripe';
-  poll:      number;
-}
+const MOCK_TRACK: TrackData = { isPlaying: true, track: 'Blinding Lights', artist: 'The Weeknd', album: 'After Hours', albumArt: '' };
 
-interface TrackData {
-  isPlaying: boolean;
-  track?:    string;
-  artist?:   string;
-  album?:    string;
-  albumArt?: string;
-}
+function NowPlayingRunner({ config, autoplay }: { config: NpConfig; autoplay: boolean }) {
+  const [animState, setAnimStateRaw] = useState<AnimState>('hidden');
+  // Mirrors animState so the poll can ask "is the card on screen?" without a stale closure.
+  const animRef = useRef<AnimState>('hidden');
+  const setAnimState = useCallback((next: AnimState) => { animRef.current = next; setAnimStateRaw(next); }, []);
+  const [track, setTrack] = useState<TrackData | null>(null);
+  const lastKeyRef = useRef('');
+  const trackRef = useRef<TrackData | null>(null);
+  const dismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const enterTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const exitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-type AnimState = 'hidden' | 'entering' | 'visible' | 'exiting';
+  useOverlayFont(config.font);
 
-// ── Constants ─────────────────────────────────────────────────────────────────
-
-const ENTER_MS   = 1100;
-const EXIT_MS    = 850;
-const TEXT_DELAY = 420;
-
-// ── Config parsing ────────────────────────────────────────────────────────────
-
-function parseConfig(sp: URLSearchParams): NowPlayingConfig {
-  const corner    = (sp.get('corner') ?? 'bottom-left') as NowPlayingConfig['corner'];
-  const fromParam = sp.get('from');
-  const autoFrom: 'left' | 'right' = corner.includes('right') ? 'right' : 'left';
-  const styleParam = sp.get('style');
-  return {
-    user:      sp.get('user')    ?? '',
-    channel:   sp.get('channel') ?? '',
-    duration:  Number(sp.get('duration') ?? 10),
-    corner,
-    from:      (fromParam === 'left' || fromParam === 'right') ? fromParam : autoFrom,
-    color:     sp.get('color')  ?? '#AC0747',
-    font:      sp.get('font')   ?? 'Geist',
-    fontColor: sp.get('fcolor') ?? '#ffffff',
-    style:     (styleParam === 'dark' || styleParam === 'stripe') ? styleParam : 'glass',
-    poll:      Math.max(10, Number(sp.get('poll') ?? 15)),
-  };
-}
-
-// ── Style helpers ─────────────────────────────────────────────────────────────
-
-function cornerStyle(corner: NowPlayingConfig['corner']): React.CSSProperties {
-  const p = 20;
-  if (corner === 'top-left')     return { top: p, left: p };
-  if (corner === 'top-right')    return { top: p, right: p };
-  if (corner === 'bottom-right') return { bottom: p, right: p };
-  return                                { bottom: p, left: p };
-}
-
-function cardStyle(style: NowPlayingConfig['style'], color: string): React.CSSProperties {
-  const base: React.CSSProperties = {
-    display: 'flex', alignItems: 'stretch', width: 300, overflow: 'hidden',
-  };
-  if (style === 'dark') return {
-    ...base, borderRadius: 10,
-    background: 'rgba(12,8,6,0.92)',
-    border: '1px solid rgba(255,255,255,0.08)',
-    boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
-  };
-  if (style === 'stripe') return {
-    ...base, borderRadius: '0 10px 10px 0',
-    background: 'rgba(10,7,5,0.88)',
-    borderLeft: `3px solid ${color}`,
-  };
-  return {
-    ...base, borderRadius: 10,
-    background: 'rgba(255,255,255,0.06)',
-    border: '1.5px solid rgba(255,255,255,0.22)',
-  };
-}
-
-// ── Google Font loader ────────────────────────────────────────────────────────
-
-const BUILT_IN_FONTS = ['Geist', 'Geist Mono', 'Bricolage Grotesque'];
-
-function useGoogleFont(family: string) {
-  useEffect(() => {
-    if (BUILT_IN_FONTS.includes(family)) return;
-    const id = `gfont-${family.replace(/\s+/g, '-').toLowerCase()}`;
-    if (document.getElementById(id)) return;
-    const link = document.createElement('link');
-    link.id   = id;
-    link.rel  = 'stylesheet';
-    link.href = `https://fonts.googleapis.com/css2?family=${family.replace(/ /g, '+')}:wght@400;700&display=swap`;
-    document.head.appendChild(link);
-  }, [family]);
-}
-
-// ── Component ─────────────────────────────────────────────────────────────────
-
-export default function NowPlayingOverlay() {
-  const [searchParams] = useSearchParams();
-  const config = useMemo(() => parseConfig(searchParams), [searchParams]);
-
-  const [animState, setAnimState] = useState<AnimState>('hidden');
-  const [track, setTrack]         = useState<TrackData | null>(null);
-  const lastTrackRef  = useRef('');
-  const dismissTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const enterTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const exitTimerRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useGoogleFont(config.font);
-
-  const show = useCallback((data: TrackData) => {
-    if (dismissTimer.current)  clearTimeout(dismissTimer.current);
-    if (enterTimerRef.current) clearTimeout(enterTimerRef.current);
-    if (exitTimerRef.current)  clearTimeout(exitTimerRef.current);
-    setTrack(data);
-    setAnimState('entering');
-    enterTimerRef.current = setTimeout(() => setAnimState('visible'), ENTER_MS + 50);
-    dismissTimer.current = setTimeout(() => {
-      if (enterTimerRef.current) clearTimeout(enterTimerRef.current);
-      setAnimState('exiting');
-      exitTimerRef.current = setTimeout(() => setAnimState('hidden'), EXIT_MS + 50);
-    }, ENTER_MS + 50 + config.duration * 1000);
-  }, [config.duration]);
-
-  const hide = useCallback(() => {
-    if (dismissTimer.current)  clearTimeout(dismissTimer.current);
-    if (enterTimerRef.current) clearTimeout(enterTimerRef.current);
-    if (exitTimerRef.current)  clearTimeout(exitTimerRef.current);
-    setAnimState('exiting');
-    exitTimerRef.current = setTimeout(() => setAnimState('hidden'), EXIT_MS + 50);
+  const clearTimers = useCallback(() => {
+    for (const ref of [dismissTimer, enterTimer, exitTimer]) {
+      if (ref.current) clearTimeout(ref.current);
+      ref.current = null;
+    }
   }, []);
 
-  const apiBase = (import.meta.env.VITE_API_URL as string) ?? '';
+  const show = useCallback((data: TrackData) => {
+    trackRef.current = data;
+    setTrack(data);
+    // Stay-open with the card already up: swap the track in place, no exit and re-entrance.
+    if (!shouldAnimateIn(config.stayOpen, animRef.current)) return;
+    clearTimers();
+    setAnimState('entering');
+    enterTimer.current = setTimeout(() => setAnimState('visible'), ENTER_MS + 50);
+    if (!config.stayOpen) {
+      dismissTimer.current = setTimeout(() => {
+        if (enterTimer.current) clearTimeout(enterTimer.current);
+        setAnimState('exiting');
+        exitTimer.current = setTimeout(() => setAnimState('hidden'), EXIT_MS + 50);
+      }, ENTER_MS + 50 + config.popupSeconds * 1000);
+    }
+  }, [config.popupSeconds, config.stayOpen, clearTimers, setAnimState]);
 
-  // Shared poll function — also called on !song trigger
+  const hide = useCallback(() => {
+    clearTimers();
+    setAnimState('exiting');
+    exitTimer.current = setTimeout(() => setAnimState('hidden'), EXIT_MS + 50);
+  }, [clearTimers, setAnimState]);
+
+  // Switching "stay open" live: turning it on cancels the pending dismissal;
+  // turning it off while a card is up restarts a normal popup so it cannot stay stuck.
+  useEffect(() => {
+    if (config.stayOpen) {
+      if (dismissTimer.current) clearTimeout(dismissTimer.current);
+      dismissTimer.current = null;
+      return;
+    }
+    if (lastKeyRef.current && trackRef.current) show(trackRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [config.stayOpen]);
+
+  // One Last.fm check. Also used when the trigger command fires (force = true).
   const pollLastFm = useCallback(async (force = false) => {
     if (!config.user) return;
     try {
-      const res = await fetch(`${apiBase}/nowplaying/json?user=${encodeURIComponent(config.user)}`);
+      const res = await fetch(`${apiUrl}/nowplaying/json?user=${encodeURIComponent(config.user)}`);
       if (!res.ok) return;
       const data = await res.json() as TrackData;
-      const key  = data.isPlaying ? `${data.track ?? ''}||${data.artist ?? ''}` : '';
-      if (data.isPlaying && (force || key !== lastTrackRef.current)) {
-        lastTrackRef.current = key;
+      const key = data.isPlaying ? `${data.track ?? ''}||${data.artist ?? ''}` : '';
+      const visible = animRef.current === 'entering' || animRef.current === 'visible';
+      const decision = decidePoll({ isPlaying: data.isPlaying, key, lastKey: lastKeyRef.current, force, visible, cfg: config });
+      if (decision === 'show') {
+        lastKeyRef.current = key;
         show(data);
-      } else if (!data.isPlaying && lastTrackRef.current) {
-        lastTrackRef.current = '';
+      } else if (decision === 'hide') {
+        lastKeyRef.current = '';
         hide();
+      } else if (decision === 'reset') {
+        lastKeyRef.current = '';
       }
-    } catch { /* silent */ }
-  }, [config.user, apiBase, show, hide]);
+    } catch { /* silent: the next poll will try again */ }
+  }, [config, show, hide]);
 
-  // Regular polling loop
   useEffect(() => {
     if (!config.user) return;
-    pollLastFm();
-    const interval = setInterval(pollLastFm, config.poll * 1000);
-    return () => {
-      clearInterval(interval);
-      if (dismissTimer.current)  clearTimeout(dismissTimer.current);
-      if (enterTimerRef.current) clearTimeout(enterTimerRef.current);
-      if (exitTimerRef.current)  clearTimeout(exitTimerRef.current);
-    };
+    void pollLastFm();
+    const interval = setInterval(() => void pollLastFm(), config.poll * 1000);
+    return () => clearInterval(interval);
   }, [config.user, config.poll, pollLastFm]);
 
-  // !song trigger — polls /nowplaying/triggered every 5s, force-shows on new timestamp
+  // The bot writes a timestamp when !song is used. The first answer only records it,
+  // so an old trigger does not pop the card up every time OBS loads the page.
   useEffect(() => {
     if (!config.channel) return;
     let lastSeen: string | null = null;
-    async function checkTrigger() {
+    let primed = false;
+    const check = async () => {
       try {
-        const res = await fetch(`${apiBase}/nowplaying/triggered?channel=${encodeURIComponent(config.channel)}`);
+        const res = await fetch(`${apiUrl}/nowplaying/triggered?channel=${encodeURIComponent(config.channel)}`);
         if (!res.ok) return;
         const { triggered_at } = await res.json() as { triggered_at: string | null };
-        if (triggered_at && triggered_at !== lastSeen) {
-          lastSeen = triggered_at;
-          pollLastFm(true);
-        }
+        if (primed && triggered_at && triggered_at !== lastSeen) void pollLastFm(true);
+        lastSeen = triggered_at;
+        primed = true;
       } catch { /* silent */ }
-    }
-    checkTrigger();
-    const interval = setInterval(checkTrigger, 5000);
+    };
+    void check();
+    const interval = setInterval(() => void check(), TRIGGER_POLL_MS);
     return () => clearInterval(interval);
-  }, [config.channel, apiBase, pollLastFm]);
+  }, [config.channel, pollLastFm]);
 
-  // autoplay=1 — shows a mock track 600ms after mount for preview
+  // ?autoplay=1 shows a sample track shortly after load, for previews.
   useEffect(() => {
-    if (searchParams.get('autoplay') !== '1') return;
-    const t = setTimeout(() => show({
-      isPlaying: true,
-      track:     'Blinding Lights',
-      artist:    'The Weeknd',
-      album:     'After Hours',
-      albumArt:  '',
-    }), 600);
+    if (!autoplay) return;
+    const t = setTimeout(() => show(MOCK_TRACK), 600);
     return () => clearTimeout(t);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => clearTimers, [clearTimers]);
+
   if (animState === 'hidden' || !track) return null;
+  return <NowPlayingCard cfg={config} track={track} animState={animState} />;
+}
 
-  const fromLeft  = config.from === 'left';
-  const enterAnim = fromLeft ? 'np-card-enter-left' : 'np-card-enter-right';
-  const exitAnim  = fromLeft ? 'np-card-exit-right' : 'np-card-exit-left';
-  const textAnim  = fromLeft ? 'np-text-reveal-left' : 'np-text-reveal-right';
+export default function NowPlayingOverlay() {
+  const { token } = useParams<{ token: string }>();
+  const [searchParams] = useSearchParams();
+  const legacy = useMemo(() => parseLegacyConfig(searchParams), [searchParams]);
+  const [stored, setStored] = useState<NpConfig | null>(null);
+  const lastSeen = useRef('');
 
-  const wrapAnim: React.CSSProperties =
-    animState === 'entering' ? { animation: `${enterAnim} ${ENTER_MS}ms cubic-bezier(0.22,1,0.36,1) forwards` } :
-    animState === 'exiting'  ? { animation: `${exitAnim} ${EXIT_MS}ms cubic-bezier(0.55,0,1,0.45) forwards` } :
-    { transform: 'translateX(0)', opacity: 1 };
+  // Token mode: re-read the stored config every 15 s so dashboard changes reach OBS.
+  // A failed or 404 poll keeps what is on screen; the page never errors or loops.
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const data = reconcilePublic(await getPublicOverlay(token), 'nowplaying');
+        if (cancelled) return;
+        if (!data) {
+          // The URL was rotated or deleted: stop showing the overlay.
+          lastSeen.current = '';
+          setStored(null);
+          return;
+        }
+        const signature = JSON.stringify([data.config, data.channel, data.lastfm_username]);
+        if (signature === lastSeen.current) return;
+        lastSeen.current = signature;
+        setStored(configFromToken(data.config, data.channel, data.lastfm_username ?? ''));
+      } catch { /* keep the last good config */ }
+    };
+    void load();
+    const timer = setInterval(() => void load(), CONFIG_POLL_MS);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, [token]);
 
-  const artPopAnim: React.CSSProperties = animState === 'entering'
-    ? { animation: `np-art-pop ${ENTER_MS}ms cubic-bezier(0.34,1.56,0.64,1) forwards` }
-    : {};
-
-  const textRevealAnim: React.CSSProperties = animState === 'entering'
-    ? { animation: `${textAnim} 0.55s cubic-bezier(0.22,1,0.36,1) ${TEXT_DELAY}ms both` }
-    : {};
-
-  return (
-    <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none' }}>
-      <div style={{ position: 'absolute', ...cornerStyle(config.corner) }}>
-        <div style={{ ...cardStyle(config.style, config.color), ...wrapAnim }}>
-
-          {/* Album art */}
-          <div style={{
-            width: 72, height: 72, flexShrink: 0,
-            background: track.albumArt
-              ? undefined
-              : `linear-gradient(135deg, ${config.color}cc, ${config.color}44)`,
-            ...artPopAnim,
-          }}>
-            {track.albumArt
-              ? <img src={track.albumArt} alt={track.album} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-              : <div style={{ width: '100%', height: '100%', display: 'grid', placeItems: 'center', fontSize: 26 }}>🎵</div>
-            }
-          </div>
-
-          {/* Track info */}
-          <div style={{
-            padding: '12px 14px', flex: 1, overflow: 'hidden',
-            display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 3,
-            fontFamily: `${config.font}, sans-serif`,
-            ...textRevealAnim,
-          }}>
-            <div style={{ fontSize: 8, letterSpacing: '0.16em', textTransform: 'uppercase', color: config.color, fontWeight: 600 }}>
-              Now Playing
-            </div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: config.fontColor, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {track.track}
-            </div>
-            <div style={{ fontSize: 11, color: config.fontColor, opacity: 0.6, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {track.artist}
-            </div>
-          </div>
-
-        </div>
-      </div>
-    </div>
-  );
+  const config = token ? stored : legacy;
+  if (!config) return null;
+  return <NowPlayingRunner config={config} autoplay={!token && searchParams.get('autoplay') === '1'} />;
 }

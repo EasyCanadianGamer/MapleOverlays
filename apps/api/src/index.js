@@ -2,11 +2,17 @@ const express = require('express');
 const cors = require('cors');
 const { getNowPlaying, getNowPlayingData } = require('@maple/lastfm');
 const botRouter = require('./routes/bot');
-const overlaysRouter = require('./routes/overlays');
+const createOverlayConfigRouter = require('./routes/overlayConfig');
+const createOverlayFontsRouter = require('./routes/overlayFonts');
+const createChatAssetsRouter = require('./routes/chatAssets');
 const { migrate } = require('./migrate');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// nginx (in front of the API) passes the real client IP in X-Forwarded-For. Trust it only
+// from private-network hops, so the rate limit sees each visitor and a direct client cannot spoof it.
+app.set('trust proxy', 'loopback, linklocal, uniquelocal');
 
 app.use(cors({ origin: process.env.FRONTEND_URL }));
 app.use(express.json());
@@ -49,7 +55,9 @@ app.get('/bot/token-helper', (_req, res) => {
 });
 
 app.use(botRouter);
-app.use(overlaysRouter);
+app.use(createOverlayConfigRouter());
+app.use(createOverlayFontsRouter());
+app.use(createChatAssetsRouter());
 
 migrate()
   .then(() => app.listen(PORT, () => console.log(`Listening on port ${PORT}`)))

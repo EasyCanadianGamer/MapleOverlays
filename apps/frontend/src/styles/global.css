@@ -260,25 +260,6 @@ input, textarea, select { font-family: var(--font-body); }
   to   { opacity: 1; }
 }
 
-@keyframes overlay-confetti-1 {
-  0%   { transform: translate(0,0) rotate(0deg);    opacity: 1; }
-  100% { transform: translate(-30px,60px) rotate(220deg); opacity: 0; }
-}
-@keyframes overlay-confetti-2 {
-  0%   { transform: translate(0,0) rotate(0deg);    opacity: 1; }
-  100% { transform: translate(22px,55px) rotate(-160deg); opacity: 0; }
-}
-@keyframes overlay-confetti-3 {
-  0%   { transform: translate(0,0) rotate(0deg);    opacity: 1; }
-  100% { transform: translate(8px,70px) rotate(300deg);  opacity: 0; }
-}
-
-@keyframes alert-pop {
-  0%   { transform: translate(-50%, 80px); opacity: 0; }
-  15%  { transform: translate(-50%, 0);    opacity: 1; }
-  85%  { transform: translate(-50%, 0);    opacity: 1; }
-  100% { transform: translate(-50%, -20px); opacity: 0; }
-}
 
 /* Now Playing overlay — enter/exit */
 @keyframes np-card-enter-left {
@@ -330,16 +311,6 @@ input, textarea, select { font-family: var(--font-body); }
   animation: pulse-dot 1.6s var(--ease-out) infinite;
 }
 
-.alert-flash {
-  position: fixed;
-  left: 50%;
-  top: 100px;
-  transform: translate(-50%, 0);
-  z-index: 999;
-  pointer-events: none;
-  animation: alert-pop 3.2s var(--ease-out) forwards;
-}
-
 .hub-card {
   transition: transform 0.14s var(--ease-out), border-color 0.14s, background 0.14s;
   cursor: pointer;
@@ -368,4 +339,28 @@ input, textarea, select { font-family: var(--font-body); }
   background: url("/pattern-leaves.svg");
   background-size: 240px 240px;
   opacity: 0.045;
+}
+
+/* Overlay editor: settings on the left, preview + OBS URL + Save on the right.
+   The right column stays in view while you scroll, but scrolls by itself when it is taller than the window,
+   so the Save button is always reachable. Narrower windows get one column with the preview first. */
+.editor-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 420px);
+  gap: 20px;
+  align-items: start;
+}
+.editor-aside {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  position: sticky;
+  top: 12px;
+  max-height: calc(100vh - 24px);
+  overflow-y: auto;
+  min-width: 0;
+}
+@media (max-width: 1180px) {
+  .editor-grid { grid-template-columns: minmax(0, 1fr); }
+  .editor-aside { position: static; max-height: none; overflow: visible; order: -1; }
 }

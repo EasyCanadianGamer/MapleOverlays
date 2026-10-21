@@ -1,12 +1,12 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import './styles/global.css';
 import Landing from './pages/Landing';
 import DashboardLayout from './components/layout/DashboardLayout';
 import TwitchCallback from './pages/TwitchCallback';
-import OverlaySource from './pages/OverlaySource';
-import CustomOverlayRenderer from './pages/CustomOverlayRenderer';
+import ChatOverlayPage from './pages/ChatOverlayPage';
+import NowPlayingOverlay from './pages/NowPlayingOverlay';
 import CommandsList from './pages/CommandsList';
 import Login from './pages/AuthGate';
 
@@ -23,18 +23,22 @@ if (window.location.pathname.startsWith('/overlays/')) {
 const root = document.getElementById('root');
 if (!root) throw new Error('Root element not found');
 
+// A data router (rather than <BrowserRouter>) so the overlay editor can use useBlocker
+// to ask before leaving with unsaved changes.
+const router = createBrowserRouter([
+  { path: '/', element: <Landing /> },
+  { path: '/login/', element: <Login /> },
+  { path: '/dashboard/*', element: <DashboardLayout /> },
+  { path: '/auth/twitch/callback', element: <TwitchCallback /> },
+  { path: '/overlays/chat/:token', element: <ChatOverlayPage /> },
+  // the old /overlays/nowplaying?user=... links keep working; /:token is the new per-overlay URL
+  { path: '/overlays/nowplaying', element: <NowPlayingOverlay /> },
+  { path: '/overlays/nowplaying/:token', element: <NowPlayingOverlay /> },
+  { path: '/commands/:login', element: <CommandsList /> },
+]);
+
 createRoot(root).render(
   <StrictMode>
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Landing />} />
-        <Route path="/login/" element={<Login />} />
-        <Route path="/dashboard/*" element={<DashboardLayout />} />
-        <Route path="/auth/twitch/callback" element={<TwitchCallback />} />
-        <Route path="/overlays/custom/:id" element={<CustomOverlayRenderer />} />
-        <Route path="/overlays/:id" element={<OverlaySource />} />
-        <Route path="/commands/:login" element={<CommandsList />} />
-      </Routes>
-    </BrowserRouter>
+    <RouterProvider router={router} />
   </StrictMode>,
 );

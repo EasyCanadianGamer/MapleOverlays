@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db');
 const { encrypt } = require('../crypto');
-const { getCallerTwitchUser, getCallerTwitchId } = require('../lib/twitchAuth');
+const { getCallerTwitchId } = require('../lib/twitchAuth');
 
 const BUILTIN_COMMANDS = new Set(['ping', 'song', 'uptime', 'downtime', 'followage', 'accountage', 'watchtime', 'tip', 'commands', 'so']);
 const CMD_NAME_RE = /^[a-z0-9_]{1,20}$/;
@@ -337,53 +337,6 @@ router.get('/nowplaying/triggered', async (req, res) => {
     res.json({ triggered_at: rows[0]?.nowplaying_triggered_at ?? null });
   } catch (err) {
     console.error('GET /nowplaying/triggered error:', err);
-    res.status(500).json({ error: 'Internal error' });
-  }
-});
-
-// Authenticated — sets a preview shoutout trigger using the caller's own channel data
-router.post('/bot/shoutout/preview', async (req, res) => {
-  const caller = await getCallerTwitchUser(req);
-  if (!caller) return res.status(401).json({ error: 'Unauthorized' });
-  try {
-    await pool.query(
-      `UPDATE channels SET
-        shoutout_triggered_at = NOW(),
-        shoutout_target       = $2,
-        shoutout_clip_url     = NULL,
-        shoutout_display_name = $3,
-        shoutout_avatar_url   = $4
-       WHERE twitch_user_id = $1`,
-      [caller.id, caller.login, caller.display_name, caller.profile_image_url]
-    );
-    res.json({ ok: true });
-  } catch (err) {
-    console.error('POST /bot/shoutout/preview error:', err);
-    res.status(500).json({ error: 'Internal error' });
-  }
-});
-
-// Public — no auth needed; returns the last !so trigger + clip data for this channel
-router.get('/shoutout/triggered', async (req, res) => {
-  const { channel } = req.query;
-  if (!channel) return res.status(400).json({ error: 'Missing channel' });
-  try {
-    const { rows } = await pool.query(
-      `SELECT shoutout_triggered_at, shoutout_target, shoutout_clip_url,
-              shoutout_display_name, shoutout_avatar_url
-       FROM channels WHERE twitch_login = $1`,
-      [channel]
-    );
-    const row = rows[0];
-    res.json({
-      triggered_at:  row?.shoutout_triggered_at  ?? null,
-      target:        row?.shoutout_target         ?? null,
-      clip_url:      row?.shoutout_clip_url       ?? null,
-      display_name:  row?.shoutout_display_name   ?? null,
-      avatar_url:    row?.shoutout_avatar_url      ?? null,
-    });
-  } catch (err) {
-    console.error('GET /shoutout/triggered error:', err);
     res.status(500).json({ error: 'Internal error' });
   }
 });

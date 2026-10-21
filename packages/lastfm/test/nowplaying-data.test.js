@@ -82,3 +82,51 @@ test('falls back to empty string when extralarge image is absent', async () => {
   assert.equal(result.albumArt,  '');
   global.fetch = orig;
 });
+
+function playing(images) {
+  return { recenttracks: { track: [{ name: 'T', artist: { '#text': 'A' }, album: { '#text': 'B' }, image: images, '@attr': { nowplaying: 'true' } }] } };
+}
+
+async function artFor(images) {
+  const orig = global.fetch;
+  process.env.LASTFM_API_KEY = 'test_key';
+  global.fetch = async () => ({ ok: true, json: async () => playing(images) });
+  delete require.cache[require.resolve('../src/index.js')];
+  const { getNowPlayingData } = require('../src/index.js');
+  try {
+    return (await getNowPlayingData('testuser')).albumArt;
+  } finally {
+    global.fetch = orig;
+  }
+}
+
+const STAR = 'https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png';
+
+test('uses the large image when the extralarge one is empty', async () => {
+  const art = await artFor([
+    { size: 'large',      '#text': 'https://example.com/l.jpg' },
+    { size: 'extralarge', '#text': '' },
+  ]);
+  assert.equal(art, 'https://example.com/l.jpg');
+});
+
+test('prefers extralarge when both sizes have a cover', async () => {
+  const art = await artFor([
+    { size: 'large',      '#text': 'https://example.com/l.jpg' },
+    { size: 'extralarge', '#text': 'https://example.com/xl.jpg' },
+  ]);
+  assert.equal(art, 'https://example.com/xl.jpg');
+});
+
+test('skips the grey star placeholder Last.fm sends when it has no cover', async () => {
+  const art = await artFor([
+    { size: 'large',      '#text': 'https://example.com/l.jpg' },
+    { size: 'extralarge', '#text': STAR },
+  ]);
+  assert.equal(art, 'https://example.com/l.jpg');
+});
+
+test('returns an empty string when every size is blank or the placeholder', async () => {
+  assert.equal(await artFor([{ size: 'large', '#text': STAR }, { size: 'extralarge', '#text': '' }]), '');
+  assert.equal(await artFor([]), '');
+});

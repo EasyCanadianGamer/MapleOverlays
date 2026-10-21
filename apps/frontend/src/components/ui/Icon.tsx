@@ -24,6 +24,7 @@ const icons: Record<string, FC<LucideProps>> = {
   twitch:   Tv,
   youtube:  PlayCircle,
   discord:  MessageSquare,
+  chat:     MessageSquare,
   users:    Users,
   zap:      Zap,
   chevron:  ChevronRight,

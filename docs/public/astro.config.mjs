@@ -29,7 +29,9 @@ export default defineConfig({
           items: [
             { label: 'Introduction', slug: '' },
             { label: 'Bot Setup', slug: 'guides/bot-setup' },
-            { label: 'Overlays', slug: 'guides/overlays' },
+            { label: 'Managing Overlays', slug: 'guides/managing-overlays' },
+            { label: 'Chat Overlay', slug: 'guides/chat-overlay' },
+            { label: 'Now Playing', slug: 'guides/nowplaying-overlay' },
           ],
         },
         {
